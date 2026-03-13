@@ -1,15 +1,17 @@
 site:
   name: TechBlogger
   tagline: Signal-rich writing for builders
-  description: A premium tech and AI publication generated from one YAML content source.
+  description: A premium tech and AI publication with sharp, practical analysis for builders.
   lastUpdated: 2026-03-13
   navigation:
-    - label: Signals
-      href: "#signals"
+    - label: Latest
+      href: /latest
+    - label: Community
+      href: /community
     - label: Topics
-      href: "#topics"
-    - label: Workflow
-      href: "#workflow"
+      href: /topics
+    - label: About
+      href: /about
   primaryAction:
     label: Open publishing guide
     href: "#workflow"
@@ -22,11 +24,10 @@ site:
     - Build artifacts stay generated
   hero:
     eyebrow: Engineering briefs for modern product teams
-    title: A premium tech + AI blog that ships from one source of truth.
+    title: A premium tech + AI blog for builders and curious minds.
     summary: >-
-      TechBlogger is tuned for teams who want a credible editorial layer over shipping notes,
-      architecture deep dives, and platform updates. Everything on the site is generated from one
-      YAML file so content changes never require hand-editing built pages.
+      TechBlogger delivers clear reporting, deep dives, and practical breakdowns across AI systems,
+      engineering, and platform strategy. We focus on what matters this week and why it matters.
     primaryAction:
       label: Browse latest signals
       href: "#signals"
