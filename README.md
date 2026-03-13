@@ -40,6 +40,22 @@ npm run dev
 
 3. Open http://localhost:3000.
 
+## Google Sign-In Setup
+
+The signup page supports Google sign-in through Google Identity Services.
+
+1. Create a Google OAuth Client ID (Web application) in Google Cloud Console.
+2. Add these Authorized JavaScript origins:
+	- `http://localhost:3000`
+	- your GitHub Pages origin (for example `https://eagolo135.github.io`)
+3. Create a local `.env.local` file with:
+
+```bash
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
+
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` is safe to expose client-side and is required for the Google button to render.
+
 ## Update Content
 
 You have two supported options.
@@ -105,6 +121,14 @@ The project uses static export, so Vercel will deploy a static version of the si
 - [scripts/validate-content.mjs](scripts/validate-content.mjs): fast validation for required fields and duplicate slugs
 - [scripts/prepare-pages.mjs](scripts/prepare-pages.mjs): adds GitHub Pages compatibility files after build
 - [docs/poc-demo.md](docs/poc-demo.md): short proof-of-concept update and publish walkthrough
+
+## MCP Tools With OpenAI API Keys
+
+This repository includes a standalone MCP server package at [mcp/openai-tools](mcp/openai-tools).
+
+- Setup and client configuration: [mcp/openai-tools/README.md](mcp/openai-tools/README.md)
+- Quick run from project root: `npm run mcp:openai`
+- Required env var: `OPENAI_API_KEY`
 
 ## Proof Of Concept Demo
 

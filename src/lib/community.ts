@@ -2,6 +2,8 @@ export type CommunityProfile = {
   name: string;
   email: string;
   createdAt: string;
+  provider?: "local" | "google";
+  avatarUrl?: string;
 };
 
 export type CommunityPost = {

@@ -11,6 +11,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+import { AiMascot } from "@/components/site/ai-mascot";
 import { PostCard } from "@/components/site/post-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,13 +96,18 @@ export function LandingPage({ content }: LandingPageProps) {
         <section className="panel panel-strong hero-spotlight relative overflow-hidden rounded-[2.2rem] px-6 py-8 sm:px-10 lg:px-12 lg:py-12">
           <div className="absolute right-[-60px] top-[-60px] h-56 w-56 rounded-full bg-[rgba(37,99,235,0.18)] blur-3xl" />
           <div className="absolute bottom-[-80px] left-[-40px] h-64 w-64 rounded-full bg-[rgba(20,184,166,0.16)] blur-3xl" />
-          <p className="eyebrow text-xs text-[color:var(--muted)]">Latest tech + AI dispatches</p>
-          <h1 className="mt-4 max-w-4xl text-5xl font-semibold tracking-[-0.06em] [text-wrap:balance] sm:text-6xl lg:text-7xl">
-            {content.site.hero.title}
-          </h1>
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-[color:var(--muted)] sm:text-xl">
-            {content.site.hero.summary}
-          </p>
+          <div className="flex gap-8">
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow text-xs text-[color:var(--muted)]">Latest tech + AI dispatches</p>
+              <h1 className="mt-4 max-w-4xl text-5xl font-semibold tracking-[-0.06em] [text-wrap:balance] sm:text-6xl lg:text-7xl">
+                {content.site.hero.title}
+              </h1>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-[color:var(--muted)] sm:text-xl">
+                {content.site.hero.summary}
+              </p>
+            </div>
+            <AiMascot />
+          </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg">
