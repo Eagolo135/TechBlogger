@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdir, readFile as readFileAsync, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile as readFileAsync, rename, rm, writeFile } from "node:fs/promises";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,10 +19,123 @@ const projectFacts = [
   "Framework: Next.js App Router",
   "Route files live under src/app/**/page.tsx (NOT pages/)",
   "UI components live under src/components/**",
+  "Mascot component file is src/components/site/ai-mascot.tsx",
   "Core content source is content/site-content.yaml",
   "Styles are in src/app/globals.css and component-level classes",
   "Do not write to out/, node_modules/, .git/, or mcp/openai-tools/node_modules/",
 ].join("\n");
+
+const retryContextFallbackPaths = [
+  "src/components/site/ai-mascot.tsx",
+  "src/components/site/landing-page.tsx",
+  "src/app/studio/page.tsx",
+  "src/app/globals.css",
+  "content/site-content.yaml",
+];
+
+// Directories to crawl when building the file tree for discovery
+const discoveryDirs = ["src", "content", "public"];
+const discoveryBlocklist = new Set(["node_modules", "out", ".next", ".git", ".turbo"]);
+
+async function getProjectFileTree(maxFiles = 400) {
+  const files = [];
+
+  async function walk(relDir, depth) {
+    if (depth > 8 || files.length >= maxFiles) {
+      return;
+    }
+
+    const absolute = path.join(websiteRoot, relDir);
+    let entries;
+    try {
+      entries = await readdir(absolute, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (files.length >= maxFiles) {
+        break;
+      }
+
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+
+      const relPath = `${relDir}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+        if (!discoveryBlocklist.has(entry.name)) {
+          await walk(relPath, depth + 1);
+        }
+      } else {
+        files.push(relPath);
+      }
+    }
+  }
+
+  for (const dir of discoveryDirs) {
+    await walk(dir, 0);
+  }
+
+  // Include root-level config and content files
+  try {
+    const rootEntries = await readdir(websiteRoot, { withFileTypes: true });
+    for (const entry of rootEntries) {
+      if (entry.isFile() && /\.(ts|tsx|js|json|yaml|yml|md|css)$/.test(entry.name)) {
+        files.push(entry.name);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return files;
+}
+
+async function discoverRelevantFiles(changeRequest) {
+  const fileTree = await getProjectFileTree(400);
+
+  // Ask the AI which files are most likely relevant to this request
+  const selectionOutput = await callModel(
+    "You are a code-search assistant helping identify which files to read before making a change.",
+    [
+      `Change request: ${changeRequest}`,
+      "Project facts:",
+      projectFacts,
+      "Full file tree:",
+      fileTree.join("\n"),
+      "Return valid JSON only (no markdown). Schema: { \"files\": [\"relative/path\", ...] }",
+      "Select up to 10 most relevant files. Prioritize .tsx/.ts source files.",
+      "Think step-by-step: what UI component, page, style, or config file would need to change?",
+      "Always include any file whose name or path strongly matches keywords in the request.",
+    ].join("\n\n"),
+  );
+
+  let selectedPaths = [];
+  try {
+    const parsed = JSON.parse(selectionOutput);
+    selectedPaths = Array.isArray(parsed.files) ? parsed.files.slice(0, 10) : [];
+  } catch {
+    selectedPaths = retryContextFallbackPaths.slice(0, 5);
+  }
+
+  // Always ensure fallback paths are included so common files are always available
+  const allPaths = Array.from(new Set([...selectedPaths, ...retryContextFallbackPaths])).slice(0, 12);
+
+  const fileContents = [];
+  for (const relPath of allPaths) {
+    try {
+      const target = resolveWebsitePath(relPath);
+      const content = await readFileAsync(target.absolutePath, "utf8");
+      fileContents.push({ path: relPath, content: content.slice(0, 15000) });
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  return fileContents;
+}
 
 if (!apiKey) {
   console.error("Missing OPENAI_API_KEY in mcp/openai-tools/.env");
@@ -185,41 +298,47 @@ async function applyWebsiteOperations(operations) {
   return applied;
 }
 
+const operationSchema = JSON.stringify(
+  {
+    summary: "string",
+    operations: [
+      {
+        action: "replace|write|rename|delete",
+        path: "relative/path/from/repo/root",
+        newPath: "relative/path/for-rename (rename only)",
+        find: "EXACT substring from file content for replace action",
+        replace: "new text for replace action",
+        content: "full file content for write action",
+        reason: "why this change is needed",
+      },
+    ],
+  },
+  null,
+  2,
+);
+
 async function planWebsiteOperations(changeRequest) {
+  // Discovery phase: find the real files before planning
+  const fileContents = await discoverRelevantFiles(changeRequest);
+
   const output = await callModel(
-    "You are a senior Next.js engineer who plans and writes codebase-level changes.",
+    "You are a senior Next.js engineer who plans and applies codebase-level changes.",
     [
       `Website root: ${websiteRoot}`,
       "Project facts:",
       projectFacts,
       `Change request: ${changeRequest}`,
-      "Return valid JSON only.",
+      "Relevant file contents discovered from the project:",
+      JSON.stringify(fileContents, null, 2),
+      "Return valid JSON only (no markdown fences).",
       "Output schema:",
-      JSON.stringify(
-        {
-          summary: "string",
-          operations: [
-            {
-              action: "replace|write|rename|delete",
-              path: "relative/path/from/repo/root",
-              newPath: "relative/path/for-rename",
-              find: "exact text to find for replace action",
-              replace: "new text for replace action",
-              content: "full file content for write action",
-              reason: "why this change is needed",
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      "Use action=replace for edits to existing files.",
-      "Use action=write only for brand new files that do not exist yet.",
-      "When using action=replace, include exact find and replace strings.",
-      "When using action=write, include full file content.",
-      "Use existing project architecture and paths only.",
-      "Never use pages/* paths because this project uses src/app/* routes.",
-      "Do not include markdown code fences.",
+      operationSchema,
+      "Rules:",
+      "- Use action=replace for edits to existing files. The 'find' field MUST be an exact verbatim substring copied from the file content shown above.",
+      "- Use action=write ONLY for brand new files that do not appear in the file contents above.",
+      "- Never guess a path — only use paths that appear in the file contents or the project file tree.",
+      "- Never use pages/* paths because this project uses src/app/* routes.",
+      "- Do not include markdown code fences.",
     ].join("\n\n"),
   );
 
@@ -228,36 +347,45 @@ async function planWebsiteOperations(changeRequest) {
     return {
       summary: String(parsed.summary || "Generated change plan."),
       operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+      discoveredFiles: fileContents,
     };
   } catch {
     return {
       summary: "Failed to parse model output for website operations.",
       operations: [],
+      discoveredFiles: fileContents,
       raw: output,
     };
   }
 }
 
-async function planWebsiteOperationsWithContext(changeRequest, previousOperations, failureMessage) {
-  const referencedPaths = Array.from(
-    new Set(
-      (Array.isArray(previousOperations) ? previousOperations : [])
-        .map((operation) => String(operation?.path || "").trim())
-        .filter(Boolean),
-    ),
-  ).slice(0, 6);
+async function planWebsiteOperationsWithContext(changeRequest, previousOperations, failureMessage, existingDiscoveredFiles) {
+  // Re-use already discovered files, or re-run discovery if unavailable
+  let fileContext = existingDiscoveredFiles;
+  if (!Array.isArray(fileContext) || fileContext.length === 0) {
+    fileContext = await discoverRelevantFiles(changeRequest);
+  } else {
+    // Also re-read any files that were referenced in previous operations but may be missing
+    const referencedPaths = Array.from(
+      new Set(
+        (Array.isArray(previousOperations) ? previousOperations : [])
+          .map((operation) => String(operation?.path || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    const alreadyLoaded = new Set(fileContext.map((f) => f.path));
+    for (const relPath of referencedPaths) {
+      if (alreadyLoaded.has(relPath)) {
+        continue;
+      }
 
-  const fileContext = [];
-  for (const relativePath of referencedPaths) {
-    try {
-      const target = resolveWebsitePath(relativePath);
-      const content = await readFileAsync(target.absolutePath, "utf8");
-      fileContext.push({
-        path: target.relativePath,
-        content: content.slice(0, 12000),
-      });
-    } catch {
-      continue;
+      try {
+        const target = resolveWebsitePath(relPath);
+        const content = await readFileAsync(target.absolutePath, "utf8");
+        fileContext = [...fileContext, { path: relPath, content: content.slice(0, 15000) }];
+      } catch {
+        // skip
+      }
     }
   }
 
@@ -269,32 +397,17 @@ async function planWebsiteOperationsWithContext(changeRequest, previousOperation
       projectFacts,
       `Original change request: ${changeRequest}`,
       `Previous failure: ${failureMessage}`,
-      "Previous operations:",
+      "Previous operations that failed:",
       JSON.stringify(previousOperations, null, 2),
-      "Current file context:",
+      "Current file contents (use these exact paths and copy exact substrings for find):",
       JSON.stringify(fileContext, null, 2),
-      "Return valid JSON only with schema:",
-      JSON.stringify(
-        {
-          summary: "string",
-          operations: [
-            {
-              action: "replace|write|rename|delete",
-              path: "relative/path/from/repo/root",
-              newPath: "relative/path/for-rename",
-              find: "exact text to find for replace action",
-              replace: "new text for replace action",
-              content: "full file content for write action",
-              reason: "why this change is needed",
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      "Prefer replace operations and ensure find text exists exactly in provided file context.",
-      "Use write only for brand new files.",
-      "Never use pages/* paths.",
+      "Return valid JSON only (no markdown fences) with schema:",
+      operationSchema,
+      "Rules:",
+      "- The 'find' field for replace actions MUST be an exact verbatim substring copied from the file content shown above.",
+      "- Only use paths that appear in the file contents or were referenced in previous operations.",
+      "- Use action=write only for brand new files that do not appear in the file contents.",
+      "- Never use pages/* paths.",
     ].join("\n\n"),
   );
 
@@ -303,11 +416,13 @@ async function planWebsiteOperationsWithContext(changeRequest, previousOperation
     return {
       summary: String(parsed.summary || "Generated retry plan."),
       operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+      discoveredFiles: fileContext,
     };
   } catch {
     return {
       summary: "Failed to parse retry plan.",
       operations: [],
+      discoveredFiles: fileContext,
       raw: output,
     };
   }
@@ -375,7 +490,20 @@ async function checkReplaceOperationsApplicable(operations) {
     }
 
     const target = resolveWebsitePath(operation.path);
-    const content = await readFileAsync(target.absolutePath, "utf8");
+    let content = "";
+    try {
+      content = await readFileAsync(target.absolutePath, "utf8");
+    } catch (error) {
+      if (error instanceof Error && /ENOENT/.test(String(error))) {
+        return {
+          ok: false,
+          reason: `Replace target file does not exist: '${target.relativePath}'. Use an existing file path or write action for a new file.`,
+        };
+      }
+
+      throw error;
+    }
+
     if (!content.includes(operation.find)) {
       return {
         ok: false,
@@ -634,6 +762,7 @@ const server = createServer(async (req, res) => {
             request,
             currentPlan.operations,
             applicability.reason,
+            currentPlan.discoveredFiles,
           );
           currentPlan = nextPlan;
           retried = true;
@@ -650,6 +779,7 @@ const server = createServer(async (req, res) => {
             request,
             currentPlan.operations,
             String(applyError),
+            currentPlan.discoveredFiles,
           );
           currentPlan = nextPlan;
           retried = true;
