@@ -1,0 +1,329 @@
+site:
+  name: TechBlogger
+  tagline: Signal-rich writing for builders
+  description: A modern static tech publication generated from one YAML content source.
+  lastUpdated: 2026-03-13
+  navigation:
+    - label: Signals
+      href: "#signals"
+    - label: Topics
+      href: "#topics"
+    - label: Workflow
+      href: "#workflow"
+  primaryAction:
+    label: Open publishing guide
+    href: "#workflow"
+  marquee:
+    - Next.js 16 App Router dispatches
+    - Vercel-ready static export
+    - GitHub Pages workflow included
+    - shadcn-style Radix UI primitives
+    - Single YAML content source
+    - Build artifacts stay generated
+  hero:
+    eyebrow: Engineering briefs for modern product teams
+    title: A bold tech blog that ships cleanly from one source of truth.
+    summary: >-
+      TechBlogger is tuned for teams who want a credible editorial layer over shipping notes,
+      architecture deep dives, and platform updates. Everything on the site is generated from one
+      YAML file so content changes never require hand-editing built pages.
+    primaryAction:
+      label: Browse latest signals
+      href: "#signals"
+    secondaryAction:
+      label: See the publish flow
+      href: "#workflow"
+  stats:
+    - label: Content source
+      value: 1 YAML file
+      detail: Posts, hero, stats, FAQ, and workflow all come from the same source.
+    - label: Deployment targets
+      value: Vercel + Pages
+      detail: Static export keeps the site compatible with Vercel and GitHub Pages.
+    - label: Update cycle
+      value: Under 3 min
+      detail: Change content, validate, rebuild, and publish from a short scripted flow.
+  radar:
+    title: The areas worth tracking this week
+    summary: Tight observations from the edges of product engineering and platform delivery.
+    items:
+      - label: Edge rendering budgets
+        value: Stabilizing
+        detail: Teams are using stricter bundle and latency budgets to keep edge functions predictable.
+      - label: AI feature governance
+        value: Operational
+        detail: More teams are folding prompt, eval, and rollback controls into routine release work.
+      - label: Content ops automation
+        value: Rising
+        detail: Static, source-driven sites are replacing ad hoc page editing for editorial teams.
+  timeline:
+    - phase: Morning review
+      title: Scan platform changes
+      description: Pull in framework, platform, and tooling signals that changed since the last issue.
+    - phase: Afternoon shaping
+      title: Refine the angle
+      description: Compress the draft to one clear thesis, then align examples and metrics around it.
+    - phase: Publish loop
+      title: Validate and ship
+      description: Update the YAML source, run the build, and let Pages or Vercel handle the release.
+  footer:
+    title: Keep the source clean and the publishing path boring.
+    summary: The site is designed so the content layer remains the only thing editors need to touch.
+    primaryAction:
+      label: Review the README workflow
+      href: "#workflow"
+
+feedFilters:
+  - All
+  - Engineering
+  - AI Systems
+  - Platform
+  - Workflow
+
+featuredTopics:
+  - slug: edge-runtime
+    name: Edge Runtime
+    metric: 8 field notes
+    description: How teams are budgeting latency, package size, and data access for globally distributed experiences.
+  - slug: ai-shipping
+    name: AI Shipping Systems
+    metric: 6 implementation guides
+    description: Release process, observability, and rollback mechanics for AI-backed product features.
+  - slug: platform-ops
+    name: Platform Ops
+    metric: 5 stack reviews
+    description: Infrastructure choices, developer workflows, and deployment discipline that reduce operating drag.
+  - slug: publishing-flow
+    name: Publishing Flow
+    metric: 4 source-driven demos
+    description: Content modeling, validation, and automated publishing for static editorial properties.
+
+workflow:
+  title: How this site updates and publishes
+  summary: >-
+    The workflow is intentionally simple: change the source content, validate it, rebuild the static site,
+    then publish through GitHub Actions or Vercel.
+  steps:
+    - title: Update source content
+      description: Edit content/site-content.yaml directly, or use the CLI helper to update a specific field.
+      command: npm run content:set -- posts[0].title "Shipping AI features with fewer rollback nights"
+    - title: Validate content structure
+      description: Run the content validator before building so missing slugs, empty fields, and duplicate routes fail fast.
+      command: npm run content:check
+    - title: Build and publish
+      description: Build the static export locally, then push to GitHub for Pages or import the repo into Vercel.
+      command: npm run build:static
+
+demo:
+  title: Proof-of-concept demo
+  summary: A short, repeatable flow that proves updates happen in source content, not in generated markup.
+  steps:
+    - title: List the current posts
+      duration: 10 sec
+      description: Run the CLI to confirm which slugs and titles currently exist in the source file.
+    - title: Change one field in the source
+      duration: 20 sec
+      description: Use the content CLI or edit the YAML directly, then rerun the list command to confirm the change.
+    - title: Rebuild the site
+      duration: 60 sec
+      description: Generate the static output in out/ and keep it as a build artifact only.
+    - title: Publish by pushing main
+      duration: 60 sec
+      description: GitHub Pages deploys from the workflow on push; Vercel can auto-deploy the same repo.
+
+faq:
+  - question: Where is the single source of truth?
+    answer: The full site content lives in content/site-content.yaml. The homepage, article routes, workflow cards, and FAQ all read from that file.
+  - question: How are article pages generated?
+    answer: Next.js reads the YAML at build time and generates a static route for each post slug. No generated HTML needs manual edits.
+  - question: What is the safest way to update content?
+    answer: Use npm run content:check after any content change, then run npm run build:static before pushing to your deployment branch.
+  - question: How does GitHub Pages publishing work?
+    answer: The included GitHub Actions workflow builds the static site and deploys the out/ artifact when changes land on main.
+
+posts:
+  - slug: edge-runtime-playbook
+    title: Edge Runtime Playbook for Fast, Quiet Releases
+    deck: Keep edge latency stable by shrinking the blast radius of each release.
+    excerpt: >-
+      Shipping to edge environments feels fast until one oversized dependency or an unbounded data call bends the latency curve.
+      This playbook outlines the controls that keep edge releases predictable.
+    category: Engineering
+    publishedAt: 2026-03-11
+    readTime: 8 min read
+    featured: true
+    tags:
+      - Next.js
+      - Vercel
+      - Edge
+    metrics:
+      - label: Cold start budget
+        value: 150 ms
+      - label: Bundle target
+        value: under 1 MB
+      - label: Rollout cadence
+        value: 3 phases
+    keyTakeaways:
+      - Treat the bundle budget like a contract, not a suggestion.
+      - Prefer server-owned feature flags so edge rollouts can stop quickly.
+      - Measure origin fan-out before celebrating median latency.
+    author:
+      name: Alex Morgan
+      role: Platform editor
+      bio: Alex covers platform delivery systems, release discipline, and front-end architecture choices that scale.
+    sections:
+      - heading: Start with the budget, not the framework hype
+        callout: If the bundle has no owner, the release will eventually drift until cold starts become a product problem.
+        body: >-
+          Edge infrastructure only looks magical when the code and data path remain compact. The moment the runtime has to drag in a large dependency tree,
+          hydrate multiple remote calls, or wait on a chatty origin, the user-visible gains erode quickly.
+
+          Teams that stay fast define a cold start budget and a bundle ceiling up front, then fail builds when those limits are crossed.
+        bullets:
+          - Enforce package budgets in CI for server bundles.
+          - Log dependency additions in pull requests that affect edge routes.
+      - heading: Roll out in visible, reversible phases
+        body: >-
+          The safest releases split exposure into phases: internal traffic first, a narrow public slice second, then full rollout once the data plane is stable.
+
+          Pair that with server-owned feature switches so the fallback path is always available even if the front-end bundle is already deployed.
+        bullets:
+          - Phase 1 validates runtime assumptions.
+          - Phase 2 confirms behavior under mixed cache states.
+          - Phase 3 happens only after error and latency thresholds hold.
+      - heading: Instrument the expensive path
+        body: >-
+          Most edge incidents are not really edge incidents. They are origin dependency issues that only become visible once traffic ramps. Trace the expensive path,
+          count remote calls, and watch how long the slowest origin hop holds the response open.
+
+          That discipline turns performance work from folklore into an operating loop.
+  - slug: shipping-ai-with-rollback-discipline
+    title: Shipping AI Features with Rollback Discipline
+    deck: AI features need release hygiene that is as sharp as the model work itself.
+    excerpt: >-
+      Product teams that treat AI launches like ordinary feature flags often miss the operational complexity around prompts,
+      evaluations, and fallback experience design. This guide makes that complexity explicit.
+    category: AI Systems
+    publishedAt: 2026-03-09
+    readTime: 9 min read
+    featured: false
+    tags:
+      - AI
+      - Release Ops
+      - Observability
+    metrics:
+      - label: Eval gate
+        value: 3 checkpoints
+      - label: Rollback target
+        value: under 5 min
+      - label: Fallback modes
+        value: 2 required
+    keyTakeaways:
+      - Separate model changes from experience toggles where possible.
+      - Define manual fallback before launch day, not during incident review.
+      - Track quality regressions alongside uptime metrics.
+    author:
+      name: Maya Chen
+      role: AI systems editor
+      bio: Maya writes about AI product delivery, evaluation loops, and the operational side of shipping model-backed experiences.
+    sections:
+      - heading: Distinguish model risk from interface risk
+        body: >-
+          When AI releases go wrong, teams often blur together prompt changes, model swaps, and UI exposure. Those are related moves, but they do not deserve the same rollout treatment.
+
+          By separating the model layer from the experience layer, you gain more options for quick rollback and clearer diagnosis during launch.
+      - heading: Launch with observable quality thresholds
+        callout: Uptime can look perfect while quality silently degrades.
+        body: >-
+          Every AI feature should have explicit quality thresholds that can stop a rollout. That can be evaluator pass rate, human review score, deflection success, or some product-specific proxy.
+
+          The important part is that the threshold exists before launch and is visible in the same operating view as errors and latency.
+      - heading: Design the fallback as a first-class product path
+        body: >-
+          A fallback path is not just a technical escape hatch. It is part of the user experience. Whether you fall back to deterministic search,
+          a legacy recommendation model, or a simpler rules engine, that path needs to be intentionally designed.
+  - slug: yaml-content-ops-for-static-sites
+    title: YAML Content Ops for Static Sites that Need Fast Publishing
+    deck: One content model, many surfaces, zero hand-edited generated pages.
+    excerpt: >-
+      Editorial teams do not need a sprawling CMS to run a sharp publishing operation. In many cases a single structured file,
+      backed by validation and automated deployment, is the cleaner system.
+    category: Workflow
+    publishedAt: 2026-03-07
+    readTime: 7 min read
+    featured: false
+    tags:
+      - YAML
+      - Automation
+      - GitHub Pages
+    metrics:
+      - label: Source files
+        value: 1
+      - label: Validation step
+        value: required
+      - label: Publish triggers
+        value: push to main
+    keyTakeaways:
+      - Structured files work well when the schema is stable and the team is small.
+      - Validation scripts matter more than the file format choice.
+      - Build outputs should remain disposable artifacts.
+    author:
+      name: Jordan Ellis
+      role: Workflow editor
+      bio: Jordan focuses on content pipelines, documentation systems, and pragmatic automation for lean teams.
+    sections:
+      - heading: Keep the source of truth deliberately small
+        body: >-
+          A single YAML or JSON file can be a strong content system when the site structure is well defined. The key is resisting the urge to model every future possibility before the team needs it.
+
+          Start with the exact information the pages render today, then grow the schema in small steps.
+      - heading: Validate before you render
+        body: >-
+          The failure mode of source-driven sites is usually invalid content shape, not rendering code. That is why a short validation step belongs in the default workflow.
+
+          Catch duplicate slugs, missing titles, or empty article sections before the build writes any output.
+      - heading: Treat generated output as disposable
+        body: >-
+          Once the source file and build are reliable, the generated HTML becomes an artifact, not a surface for human editing.
+
+          That separation keeps updates safe and makes publication easy to automate.
+  - slug: inside-the-platform-review-loop
+    title: Inside the Platform Review Loop That Prevents Deployment Drift
+    deck: The review loop matters more than any single deployment platform choice.
+    excerpt: >-
+      Drift creeps in when infrastructure, front-end, and editorial workflows evolve in separate conversations.
+      A weekly platform review loop is often the simplest countermeasure.
+    category: Platform
+    publishedAt: 2026-03-05
+    readTime: 6 min read
+    featured: false
+    tags:
+      - Platform
+      - Governance
+      - Delivery
+    metrics:
+      - label: Review rhythm
+        value: weekly
+      - label: Owners involved
+        value: 4 roles
+      - label: Open risks tracked
+        value: 1 board
+    keyTakeaways:
+      - Shared review loops reduce hidden work across teams.
+      - Deployment quality is an organizational habit before it is a tooling feature.
+      - A short risk board beats scattered status updates.
+    author:
+      name: Nina Patel
+      role: Platform columnist
+      bio: Nina writes about platform operating models, governance, and the practical habits behind stable delivery.
+    sections:
+      - heading: Drift starts in the gaps between teams
+        body: >-
+          Engineering rarely chooses deployment drift on purpose. It appears when ownership boundaries are fuzzy and no one has a simple routine for reconnecting technical choices to release reality.
+
+          A platform review loop works because it forces those decisions back into one room.
+      - heading: Keep the agenda structured and brief
+        body: >-
+          The best review loops are small and repeatable. Talk through upcoming changes, current incidents, build and deploy health, and any schema or workflow updates that could surprise another team.
+
+          That beats broad status meetings that surface everything and resolve little.

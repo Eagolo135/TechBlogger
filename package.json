@@ -1,17 +1,35 @@
 {
-  "name": "temp-techblogger",
+  "name": "techblogger",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:static": "next build && node scripts/prepare-pages.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "content:check": "node scripts/validate-content.mjs",
+    "content:list": "node scripts/content-cli.mjs list-posts",
+    "content:get": "node scripts/content-cli.mjs get",
+    "content:set": "node scripts/content-cli.mjs set",
+    "publish:pages": "npm run build:static"
   },
   "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.5.0",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
