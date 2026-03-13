@@ -8,6 +8,7 @@ import { getProfile, saveCommunityPost } from "@/lib/community";
 
 const RESEARCH_API_URL = process.env.NEXT_PUBLIC_RESEARCH_API_URL || "http://localhost:8787/generate";
 const SITE_CHANGE_API_URL = RESEARCH_API_URL.replace(/\/generate\/?$/i, "/site-change");
+const TRANSCRIBE_API_URL = RESEARCH_API_URL.replace(/\/generate\/?$/i, "/transcribe");
 
 type StructuredPost = {
   title: string;
@@ -72,39 +73,10 @@ type StudioAiChatProps = {
   onPublished: () => void;
 };
 
-type SpeechRecognitionResultLike = {
-  isFinal: boolean;
-  length: number;
-  [index: number]: {
-    transcript: string;
-  };
-  0: {
-    transcript: string;
-  };
+type TranscribeResponse = {
+  transcript?: string;
+  error?: string;
 };
-
-type SpeechRecognitionResultListLike = {
-  length: number;
-  [index: number]: SpeechRecognitionResultLike;
-};
-
-type SpeechRecognitionEventLike = {
-  resultIndex: number;
-  results: SpeechRecognitionResultListLike;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: { error?: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 function normalizeDraft(data: ResearchResponse) {
   if (data.post) {
@@ -155,128 +127,156 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
   const [siteEditMode, setSiteEditMode] = useState(false);
   const [recordingSupported, setRecordingSupported] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingError, setRecordingError] = useState("");
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const recordingBaseInputRef = useRef("");
-  const finalTranscriptRef = useRef("");
 
-  const canSubmit = useMemo(() => input.trim().length >= 3 && !pending, [input, pending]);
+  const canSubmit = useMemo(() => input.trim().length >= 3 && !pending && !isTranscribing, [input, pending, isTranscribing]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const withSpeechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionCtor;
-      webkitSpeechRecognition?: SpeechRecognitionCtor;
-    };
-
-    const Recognition = withSpeechWindow.SpeechRecognition || withSpeechWindow.webkitSpeechRecognition;
-    setRecordingSupported(Boolean(Recognition));
+    setRecordingSupported(Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia));
 
     return () => {
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
+      mediaRecorderRef.current?.stop();
+      mediaRecorderRef.current = null;
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      mediaStreamRef.current = null;
     };
   }, []);
 
-  function startRecording() {
-    if (!recordingSupported || pending || isRecording) {
-      return;
+  async function transcribeAudioBlob(blob: Blob) {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Could not read recorded audio."));
+      };
+      reader.onerror = () => reject(new Error("Could not process recorded audio."));
+      reader.readAsDataURL(blob);
+    });
+
+    const audioBase64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+    const response = await fetch(TRANSCRIBE_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        audioBase64,
+        mimeType: blob.type || "audio/webm",
+      }),
+    });
+
+    const data = (await response.json()) as TranscribeResponse;
+    if (!response.ok || data.error) {
+      throw new Error(data.error || "Audio transcription failed.");
     }
 
-    const withSpeechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionCtor;
-      webkitSpeechRecognition?: SpeechRecognitionCtor;
-    };
-
-    const Recognition = withSpeechWindow.SpeechRecognition || withSpeechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      setRecordingError("Speech recognition is not available in this browser.");
-      return;
+    const transcript = String(data.transcript || "").trim();
+    if (!transcript) {
+      throw new Error("No speech detected. Try speaking closer to the microphone.");
     }
 
-    const recognition = new Recognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recordingBaseInputRef.current = input.trim();
-    finalTranscriptRef.current = "";
+    setInput((current) => (current ? `${current} ${transcript}`.trim() : transcript));
     textareaRef.current?.focus();
+  }
 
-    recognition.onresult = (event) => {
-      let finalChunk = "";
-      let interimChunk = "";
+  async function startRecording() {
+    if (!recordingSupported || pending || isRecording || isTranscribing) {
+      return;
+    }
 
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        if (!result || result.length === 0) {
-          continue;
+    try {
+      setRecordingError("");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : undefined,
+      });
+
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        setIsRecording(false);
+        const recordedChunks = [...audioChunksRef.current];
+        audioChunksRef.current = [];
+
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        mediaStreamRef.current = null;
+
+        if (recordedChunks.length === 0) {
+          return;
         }
 
-        const transcript = result[0]?.transcript || "";
-        if (!transcript) {
-          continue;
+        try {
+          setIsTranscribing(true);
+          const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
+          await transcribeAudioBlob(blob);
+        } catch (transcribeError) {
+          setRecordingError(
+            transcribeError instanceof Error ? transcribeError.message : "Could not transcribe audio.",
+          );
+        } finally {
+          setIsTranscribing(false);
         }
+      };
 
-        if (result.isFinal) {
-          finalChunk = `${finalChunk} ${transcript}`.trim();
-        } else {
-          interimChunk = `${interimChunk} ${transcript}`.trim();
-        }
-      }
+      recorder.onerror = () => {
+        setRecordingError("Recording failed. Please allow microphone access and try again.");
+        setIsRecording(false);
+      };
 
-      if (finalChunk) {
-        finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalChunk}`.trim();
-      }
-
-      const transcript = `${finalTranscriptRef.current} ${interimChunk}`.trim();
-
-      if (!transcript) {
-        return;
-      }
-
-      const nextValue = `${recordingBaseInputRef.current} ${transcript}`.trim();
-      setInput(nextValue);
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
       textareaRef.current?.focus();
-    };
-
-    recognition.onerror = (event) => {
-      setRecordingError(event.error ? `Mic error: ${event.error}` : "Could not transcribe audio.");
+    } catch (recordError) {
+      setRecordingError(
+        recordError instanceof Error
+          ? recordError.message
+          : "Could not start recording. Please allow microphone access.",
+      );
       setIsRecording(false);
-      recognitionRef.current = null;
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-      recognitionRef.current = null;
-      textareaRef.current?.focus();
-    };
-
-    setRecordingError("");
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
+    }
   }
 
   function stopRecording() {
-    recognitionRef.current?.stop();
-    setIsRecording(false);
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const prompt = input.trim();
 
-    if (!prompt || pending) {
+    if (isRecording || isTranscribing) {
+      setError("Stop recording and wait for transcription before submitting.");
       return;
     }
 
-    if (isRecording) {
-      stopRecording();
+    if (!prompt || pending) {
+      return;
     }
 
     setError("");
@@ -466,10 +466,10 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
             type="button"
             variant="outline"
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={!recordingSupported || pending}
+            disabled={!recordingSupported || pending || isTranscribing}
           >
             {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {isRecording ? "Stop recording" : "Record audio"}
+            {isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Record audio"}
           </Button>
           <Button type="submit" disabled={!canSubmit}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -487,11 +487,14 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
         </div>
         {!recordingSupported ? (
           <p className="text-xs text-[color:var(--muted)]">
-            Voice input is unavailable in this browser. Try Chrome or Edge.
+            Voice input is unavailable in this browser. Use Chrome or Edge with microphone permission enabled.
           </p>
         ) : null}
         {isRecording ? (
-          <p className="text-xs text-[color:var(--accent-cool)]">Listening... your transcript will appear in the prompt box.</p>
+          <p className="text-xs text-[color:var(--accent-cool)]">Recording... click Stop recording to transcribe into the Studio textbox.</p>
+        ) : null}
+        {isTranscribing ? (
+          <p className="text-xs text-[color:var(--accent-cool)]">Transcribing audio and inserting text into the Studio prompt box...</p>
         ) : null}
         {recordingError ? <p className="text-xs text-red-600">{recordingError}</p> : null}
       </form>

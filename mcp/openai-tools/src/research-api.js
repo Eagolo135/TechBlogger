@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createReadStream } from "node:fs";
 import { mkdir, readdir, readFile as readFileAsync, rename, rm, writeFile } from "node:fs/promises";
 import { exec as execCallback } from "node:child_process";
 import { promisify } from "node:util";
@@ -17,6 +18,7 @@ dotenv.config({ path: path.join(projectRoot, ".env") });
 
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const transcriptionModel = process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
 const port = Number(process.env.MCP_RESEARCH_API_PORT || 8787);
 const corsOrigin = process.env.RESEARCH_CORS_ORIGIN || "*";
 const projectFacts = [
@@ -602,6 +604,53 @@ function fallbackStructuredPost(topic, sources, draftText) {
   };
 }
 
+function extensionForMimeType(mimeType) {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.includes("webm")) {
+    return "webm";
+  }
+  if (normalized.includes("wav")) {
+    return "wav";
+  }
+  if (normalized.includes("mp4") || normalized.includes("m4a")) {
+    return "m4a";
+  }
+  if (normalized.includes("mpeg") || normalized.includes("mp3")) {
+    return "mp3";
+  }
+
+  return "webm";
+}
+
+async function transcribeBase64Audio(audioBase64, mimeType) {
+  const cleaned = String(audioBase64 || "").trim().replace(/^data:[^;]+;base64,/, "");
+  if (!cleaned) {
+    throw new Error("Audio payload is empty.");
+  }
+
+  const extension = extensionForMimeType(mimeType);
+  const tempPath = path.join(projectRoot, `.tmp-audio-${Date.now()}.${extension}`);
+
+  try {
+    const buffer = Buffer.from(cleaned, "base64");
+    if (buffer.length < 256) {
+      throw new Error("Audio payload is too small to transcribe.");
+    }
+
+    await writeFile(tempPath, buffer);
+
+    const transcription = await openai.audio.transcriptions.create({
+      model: transcriptionModel,
+      file: createReadStream(tempPath),
+    });
+
+    const text = String(transcription?.text || "").trim();
+    return text;
+  } finally {
+    await rm(tempPath, { force: true });
+  }
+}
+
 async function generateBlogDraft(topic, sources) {
   const prompt = [
     `Topic: ${topic}`,
@@ -679,12 +728,12 @@ async function generateBlogDraft(topic, sources) {
   }
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = 1_000_000) {
   return new Promise((resolve, reject) => {
     let data = "";
     req.on("data", (chunk) => {
       data += chunk;
-      if (data.length > 1_000_000) {
+      if (data.length > maxBytes) {
         reject(new Error("Request body too large."));
       }
     });
@@ -735,6 +784,28 @@ const server = createServer(async (req, res) => {
       return;
     } catch (error) {
       json(res, 500, { error: `Research generation failed: ${String(error)}` });
+      return;
+    }
+  }
+
+  if (req.method === "POST" && req.url === "/transcribe") {
+    try {
+      // Base64-encoded audio payloads are larger than normal JSON requests.
+      const rawBody = await readBody(req, 15_000_000);
+      const body = rawBody ? JSON.parse(rawBody) : {};
+      const audioBase64 = String(body.audioBase64 || "").trim();
+      const mimeType = String(body.mimeType || "audio/webm").trim();
+
+      if (!audioBase64) {
+        json(res, 400, { error: "audioBase64 is required." });
+        return;
+      }
+
+      const transcript = await transcribeBase64Audio(audioBase64, mimeType);
+      json(res, 200, { transcript });
+      return;
+    } catch (error) {
+      json(res, 500, { error: `Audio transcription failed: ${String(error)}` });
       return;
     }
   }
