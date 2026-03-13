@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
-import { Bot, LoaderCircle, Send, Sparkles, UserRound } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, LoaderCircle, Mic, Send, Sparkles, Square, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getProfile, saveCommunityPost } from "@/lib/community";
 
@@ -72,6 +72,31 @@ type StudioAiChatProps = {
   onPublished: () => void;
 };
 
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: {
+    transcript: string;
+  };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: SpeechRecognitionResultLike[];
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
 function normalizeDraft(data: ResearchResponse) {
   if (data.post) {
     return {
@@ -119,8 +144,107 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
   const [error, setError] = useState("");
   const [latestPost, setLatestPost] = useState<StructuredPost | null>(null);
   const [siteEditMode, setSiteEditMode] = useState(false);
+  const [recordingSupported, setRecordingSupported] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recordingBaseInputRef = useRef("");
+  const finalTranscriptRef = useRef("");
 
   const canSubmit = useMemo(() => input.trim().length >= 3 && !pending, [input, pending]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const withSpeechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionCtor;
+      webkitSpeechRecognition?: SpeechRecognitionCtor;
+    };
+
+    const Recognition = withSpeechWindow.SpeechRecognition || withSpeechWindow.webkitSpeechRecognition;
+    setRecordingSupported(Boolean(Recognition));
+
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
+
+  function startRecording() {
+    if (!recordingSupported || pending) {
+      return;
+    }
+
+    const withSpeechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionCtor;
+      webkitSpeechRecognition?: SpeechRecognitionCtor;
+    };
+
+    const Recognition = withSpeechWindow.SpeechRecognition || withSpeechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setRecordingError("Speech recognition is not available in this browser.");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recordingBaseInputRef.current = input.trim();
+    finalTranscriptRef.current = "";
+
+    recognition.onresult = (event) => {
+      const newResults = event.results.slice(event.resultIndex);
+      const finalChunk = newResults
+        .filter((result) => result.isFinal)
+        .map((result) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
+
+      const interimChunk = newResults
+        .filter((result) => !result.isFinal)
+        .map((result) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
+
+      if (finalChunk) {
+        finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalChunk}`.trim();
+      }
+
+      const transcript = `${finalTranscriptRef.current} ${interimChunk}`.trim();
+
+      if (!transcript) {
+        return;
+      }
+
+      const nextValue = `${recordingBaseInputRef.current} ${transcript}`.trim();
+      setInput(nextValue);
+    };
+
+    recognition.onerror = (event) => {
+      setRecordingError(event.error ? `Mic error: ${event.error}` : "Could not transcribe audio.");
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    setRecordingError("");
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }
+
+  function stopRecording() {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -312,6 +436,15 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!recordingSupported || pending}
+          >
+            {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {isRecording ? "Stop recording" : "Record audio"}
+          </Button>
           <Button type="submit" disabled={!canSubmit}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {pending
@@ -326,6 +459,15 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
             <Link href="/community">View community feed</Link>
           </Button>
         </div>
+        {!recordingSupported ? (
+          <p className="text-xs text-[color:var(--muted)]">
+            Voice input is unavailable in this browser. Try Chrome or Edge.
+          </p>
+        ) : null}
+        {isRecording ? (
+          <p className="text-xs text-[color:var(--accent-cool)]">Listening... your transcript will appear in the prompt box.</p>
+        ) : null}
+        {recordingError ? <p className="text-xs text-red-600">{recordingError}</p> : null}
       </form>
 
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
