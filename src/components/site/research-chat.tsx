@@ -65,11 +65,11 @@ export function ResearchChat() {
     <section className="panel rounded-[2rem] p-6 sm:p-8">
       <div className="flex items-center gap-2 text-sm font-medium text-[color:var(--accent-ink)]">
         <Bot className="h-4 w-4" />
-        AI blog research chat
+        AI blog creation chat
       </div>
-      <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">Search a topic and generate a ready-to-edit post draft</h2>
+      <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">Request a new blog post and generate a full draft</h2>
       <p className="mt-3 max-w-3xl text-sm leading-7 text-[color:var(--muted)]">
-        This assistant uses your MCP research tools to search the web and compose a blog post draft with sources.
+        Describe a topic in one sentence or a full brief. The assistant searches the web, then writes an in-depth draft with sources.
       </p>
 
       <form onSubmit={onSubmit} className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -85,7 +85,7 @@ export function ResearchChat() {
         />
         <Button type="submit" size="default" className="min-w-[180px]">
           {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {pending ? "Researching..." : "Generate draft"}
+          {pending ? "Researching..." : "Create blog post"}
         </Button>
       </form>
 
