@@ -32,39 +32,6 @@ export function LandingPage({ content }: LandingPageProps) {
     <div className="relative overflow-hidden pb-12">
       <div className="pointer-events-none absolute inset-0 grid-lines opacity-35" />
 
-      <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6 lg:px-8">
-        <div className="panel mx-auto flex max-w-7xl items-center justify-between rounded-full px-4 py-3 sm:px-6">
-          <div>
-            <p className="eyebrow text-[11px] text-[color:var(--muted)]">{content.site.name}</p>
-            <p className="text-sm font-medium">{content.site.tagline}</p>
-          </div>
-
-          <nav className="hidden items-center gap-6 text-sm text-[color:var(--muted)] md:flex">
-            <Link href="/latest" className="transition hover:text-foreground">
-              Latest
-            </Link>
-            <Link href="/topics" className="transition hover:text-foreground">
-              Topics
-            </Link>
-            <Link href="/community" className="transition hover:text-foreground">
-              Community
-            </Link>
-            <Link href="/about" className="transition hover:text-foreground">
-              About
-            </Link>
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href="/signup">Sign up</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/latest">Read now</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 pt-6 sm:px-6 lg:px-8">
         <section className="panel panel-strong hero-spotlight relative overflow-hidden rounded-[2.2rem] px-6 py-8 sm:px-10 lg:px-12 lg:py-12">
           <div className="absolute right-[-60px] top-[-60px] h-56 w-56 rounded-full bg-[rgba(37,99,235,0.18)] blur-3xl" />

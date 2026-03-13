@@ -37,9 +37,18 @@ export type CommunityPost = {
 
 const PROFILE_KEY = "techblogger_profile_v1";
 const POSTS_KEY = "techblogger_posts_v1";
+export const PROFILE_CHANGED_EVENT = "techblogger-profile-changed";
 
 function hasWindow() {
   return typeof window !== "undefined";
+}
+
+function notifyProfileChanged() {
+  if (!hasWindow()) {
+    return;
+  }
+
+  window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT));
 }
 
 export function getProfile(): CommunityProfile | null {
@@ -65,6 +74,16 @@ export function saveProfile(profile: CommunityProfile) {
   }
 
   window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  notifyProfileChanged();
+}
+
+export function clearProfile() {
+  if (!hasWindow()) {
+    return;
+  }
+
+  window.localStorage.removeItem(PROFILE_KEY);
+  notifyProfileChanged();
 }
 
 export function getCommunityPosts(): CommunityPost[] {

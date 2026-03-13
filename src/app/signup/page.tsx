@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowRight, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { saveProfile } from "@/lib/community";
+import { getProfile, saveProfile } from "@/lib/community";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -38,6 +38,12 @@ export default function SignupPage() {
   const [googleError, setGoogleError] = useState("");
   const [googleReady, setGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (getProfile()) {
+      router.replace("/profile");
+    }
+  }, [router]);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || !googleReady) {
