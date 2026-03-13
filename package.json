@@ -12,7 +12,9 @@
     "content:list": "node scripts/content-cli.mjs list-posts",
     "content:get": "node scripts/content-cli.mjs get",
     "content:set": "node scripts/content-cli.mjs set",
-    "publish:pages": "npm run build:static"
+    "publish:pages": "npm run build:static",
+    "mcp:openai": "node mcp/openai-tools/src/server.js",
+    "mcp:research-api": "node mcp/openai-tools/src/research-api.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

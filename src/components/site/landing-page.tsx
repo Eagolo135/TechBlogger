@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AiMascot } from "@/components/site/ai-mascot";
 import { PostCard } from "@/components/site/post-card";
+import { ResearchChat } from "@/components/site/research-chat";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -205,6 +206,8 @@ export function LandingPage({ content }: LandingPageProps) {
             </div>
           </aside>
         </section>
+
+        <ResearchChat />
 
         <section id="community" className="panel rounded-[2rem] px-6 py-8 sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

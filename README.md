@@ -133,6 +133,28 @@ This repository includes a standalone MCP server package at [mcp/openai-tools](m
 - Quick run from project root: `npm run mcp:openai`
 - Required env var: `OPENAI_API_KEY`
 
+### AI Topic-To-Post Chat (Homepage)
+
+The homepage includes an AI research chat that can search the internet and generate a blog draft.
+
+1. In `mcp/openai-tools/.env`, set `OPENAI_API_KEY`.
+2. Start the research API:
+
+```bash
+npm run mcp:research-api
+```
+
+3. Optionally configure the frontend endpoint in `.env.local`:
+
+```bash
+NEXT_PUBLIC_RESEARCH_API_URL=http://localhost:8787/generate
+```
+
+4. Run the Next.js app and open the homepage chat panel.
+
+For deployed static hosting, run and host the research API separately, then point
+`NEXT_PUBLIC_RESEARCH_API_URL` to that hosted `/generate` endpoint.
+
 ## Proof Of Concept Demo
 
 See [docs/poc-demo.md](docs/poc-demo.md) for a short end-to-end demo that shows:

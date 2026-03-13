@@ -1,0 +1,21 @@
+{
+  "name": "techblogger-openai-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP tools powered by OpenAI API keys",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node --check src/server.js",
+    "research:api": "node src/research-api.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "dotenv": "^16.6.1",
+    "openai": "^5.23.0",
+    "playwright": "^1.55.1",
+    "zod": "^3.25.76"
+  }
+}
