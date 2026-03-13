@@ -52,6 +52,12 @@ type SiteChangeResponse = {
     newPath?: string;
     status: string;
   }>;
+  commit?: {
+    committed: boolean;
+    sha?: string;
+    message?: string;
+    error?: string;
+  };
   error?: string;
 };
 
@@ -159,12 +165,18 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
               .join(", ")
           : "";
 
+        const commitNote = data.commit?.committed
+          ? ` Committed to git (${data.commit.sha}).`
+          : data.commit?.error
+            ? ` (git commit failed: ${data.commit.error})`
+            : "";
+
         setMessages((current) => [
           ...current,
           {
             id: `assistant-site-${Date.now()}`,
             role: "assistant",
-            text: `Site update completed. ${data.summary || ""} Applied ${data.count || 0} changes.${appliedSummary ? ` (${appliedSummary})` : ""}`,
+            text: `Site update completed. ${data.summary || ""} Applied ${data.count || 0} changes.${appliedSummary ? ` (${appliedSummary})` : ""}${commitNote}`,
           },
         ]);
       } else {

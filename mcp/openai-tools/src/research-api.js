@@ -1,10 +1,14 @@
 import { createServer } from "node:http";
 import { mkdir, readdir, readFile as readFileAsync, rename, rm, writeFile } from "node:fs/promises";
+import { exec as execCallback } from "node:child_process";
+import { promisify } from "node:util";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+
+const exec = promisify(execCallback);
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(currentFilePath), "..");
@@ -261,7 +265,8 @@ async function applyWebsiteOperations(operations) {
         throw new Error(`Find string was not found in '${target.relativePath}'.`);
       }
 
-      const after = before.replace(operation.find, operation.replace);
+      // Use split/join so replacement string is never interpreted for $& $' $` $n patterns
+      const after = before.split(operation.find).join(operation.replace);
       await writeFile(target.absolutePath, after, "utf8");
       applied.push({ action, path: target.relativePath, status: "replaced" });
       continue;
@@ -513,6 +518,20 @@ async function checkReplaceOperationsApplicable(operations) {
   }
 
   return { ok: true, reason: "" };
+}
+
+async function gitCommitChanges(changedPaths, commitMessage) {
+  try {
+    const safeMsg = commitMessage.replace(/"/g, "'").replace(/`/g, "'").slice(0, 200);
+    const fileArgs = changedPaths.map((p) => `"${p.replace(/"/g, '\\"')}"`).join(" ");
+    await exec(`git add ${fileArgs}`, { cwd: websiteRoot });
+    const { stdout } = await exec(`git commit -m "${safeMsg}"`, { cwd: websiteRoot });
+    const shaMatch = stdout.match(/\b([0-9a-f]{7,40})\b/);
+    return { committed: true, sha: shaMatch ? shaMatch[1] : "unknown", message: safeMsg };
+  } catch (error) {
+    // Don't fail the whole request over a commit error, just report it
+    return { committed: false, error: String(error) };
+  }
 }
 
 async function performWebSearch(query, maxResults = 6) {
@@ -772,7 +791,7 @@ const server = createServer(async (req, res) => {
 
         try {
           applied = await applyWebsiteOperations(currentPlan.operations);
-          break;
+          break; // success
         } catch (applyError) {
           lastFailure = String(applyError);
           const nextPlan = await planWebsiteOperationsWithContext(
@@ -787,9 +806,14 @@ const server = createServer(async (req, res) => {
         }
       }
 
-      if (!applied) {
-        throw new Error(lastFailure || "Failed to apply site change after retries.");
+      if (!applied || applied.length === 0) {
+        throw new Error(lastFailure || "AI produced no operations for this request. Try rephrasing.");
       }
+
+      // Auto-commit the changes to git
+      const changedFiles = [...new Set(applied.map((a) => a.path))];
+      const commitMsg = `MCP site-edit: ${currentPlan.summary || request}`.slice(0, 200);
+      const commitResult = await gitCommitChanges(changedFiles, commitMsg);
 
       json(res, 200, {
         request,
@@ -800,6 +824,7 @@ const server = createServer(async (req, res) => {
         count: applied.length,
         retried,
         retrySummary,
+        commit: commitResult,
       });
       return;
     } catch (error) {
