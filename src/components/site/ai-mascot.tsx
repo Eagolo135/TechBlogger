@@ -4,7 +4,7 @@ export function AiMascot() {
       <circle cx="50" cy="50" r="48" stroke="#2563EB" strokeWidth="4" />
       <circle cx="35" cy="40" r="6" fill="#2563EB" />
       <circle cx="65" cy="40" r="6" fill="#2563EB" />
-      <path d="M35 55 Q50 70 65 55" stroke="#2563EB" strokeWidth="4" strokeLinecap="round" />
+      <path d="M34 58 Q50 76 66 58" stroke="#2563EB" strokeWidth="4" strokeLinecap="round" />
     </svg>
   );
 }
