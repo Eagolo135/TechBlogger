@@ -42,19 +42,24 @@ function decodeSearchHref(rawHref) {
     return "";
   }
 
-  if (rawHref.startsWith("http://") || rawHref.startsWith("https://")) {
-    return rawHref;
-  }
+  const normalizedHref = rawHref.startsWith("//") ? `https:${rawHref}` : rawHref;
 
-  if (rawHref.startsWith("/l/?")) {
-    const params = new URLSearchParams(rawHref.slice(4));
-    const target = params.get("uddg");
+  try {
+    const maybeUrl = new URL(
+      normalizedHref.startsWith("http://") || normalizedHref.startsWith("https://")
+        ? normalizedHref
+        : `https://duckduckgo.com${normalizedHref}`,
+    );
+
+    const target = maybeUrl.searchParams.get("uddg");
     if (target) {
       return decodeURIComponent(target);
     }
-  }
 
-  return `https://duckduckgo.com${rawHref}`;
+    return maybeUrl.toString();
+  } catch {
+    return "";
+  }
 }
 
 async function performWebSearch(query, maxResults = 6) {
