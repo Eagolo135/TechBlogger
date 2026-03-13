@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { ArrowRight, Clock3 } from "lucide-react";
-import { AiMascot } from "@/components/site/ai-mascot";
+
 import { PostCard } from "@/components/site/post-card";
 import { ResearchChat } from "@/components/site/research-chat";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +36,7 @@ export function LandingPage({ content }: LandingPageProps) {
         <section className="panel panel-strong hero-spotlight relative overflow-hidden rounded-[2.2rem] px-6 py-8 sm:px-10 lg:px-12 lg:py-12">
           <div className="absolute right-[-60px] top-[-60px] h-56 w-56 rounded-full bg-[rgba(37,99,235,0.18)] blur-3xl" />
           <div className="absolute bottom-[-80px] left-[-40px] h-64 w-64 rounded-full bg-[rgba(20,184,166,0.16)] blur-3xl" />
-          <div className="flex gap-8">
-            <div className="min-w-0 flex-1">
+          <div className="min-w-0">
               <p className="eyebrow text-xs text-[color:var(--muted)]">Featured magazine</p>
               <h1 className="mt-4 max-w-4xl text-5xl font-semibold tracking-[-0.06em] [text-wrap:balance] sm:text-6xl lg:text-7xl">
                 {content.site.hero.title}
@@ -58,8 +57,6 @@ export function LandingPage({ content }: LandingPageProps) {
                 </Button>
               </div>
             </div>
-            <AiMascot />
-          </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
