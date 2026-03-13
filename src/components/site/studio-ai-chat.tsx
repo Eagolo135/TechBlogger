@@ -74,14 +74,23 @@ type StudioAiChatProps = {
 
 type SpeechRecognitionResultLike = {
   isFinal: boolean;
+  length: number;
+  [index: number]: {
+    transcript: string;
+  };
   0: {
     transcript: string;
   };
 };
 
+type SpeechRecognitionResultListLike = {
+  length: number;
+  [index: number]: SpeechRecognitionResultLike;
+};
+
 type SpeechRecognitionEventLike = {
   resultIndex: number;
-  results: SpeechRecognitionResultLike[];
+  results: SpeechRecognitionResultListLike;
 };
 
 type SpeechRecognitionLike = {
@@ -148,6 +157,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingError, setRecordingError] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recordingBaseInputRef = useRef("");
   const finalTranscriptRef = useRef("");
 
@@ -173,7 +183,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
   }, []);
 
   function startRecording() {
-    if (!recordingSupported || pending) {
+    if (!recordingSupported || pending || isRecording) {
       return;
     }
 
@@ -195,20 +205,29 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
 
     recordingBaseInputRef.current = input.trim();
     finalTranscriptRef.current = "";
+    textareaRef.current?.focus();
 
     recognition.onresult = (event) => {
-      const newResults = event.results.slice(event.resultIndex);
-      const finalChunk = newResults
-        .filter((result) => result.isFinal)
-        .map((result) => result[0]?.transcript || "")
-        .join(" ")
-        .trim();
+      let finalChunk = "";
+      let interimChunk = "";
 
-      const interimChunk = newResults
-        .filter((result) => !result.isFinal)
-        .map((result) => result[0]?.transcript || "")
-        .join(" ")
-        .trim();
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (!result || result.length === 0) {
+          continue;
+        }
+
+        const transcript = result[0]?.transcript || "";
+        if (!transcript) {
+          continue;
+        }
+
+        if (result.isFinal) {
+          finalChunk = `${finalChunk} ${transcript}`.trim();
+        } else {
+          interimChunk = `${interimChunk} ${transcript}`.trim();
+        }
+      }
 
       if (finalChunk) {
         finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalChunk}`.trim();
@@ -222,6 +241,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
 
       const nextValue = `${recordingBaseInputRef.current} ${transcript}`.trim();
       setInput(nextValue);
+      textareaRef.current?.focus();
     };
 
     recognition.onerror = (event) => {
@@ -233,6 +253,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
     recognition.onend = () => {
       setIsRecording(false);
       recognitionRef.current = null;
+      textareaRef.current?.focus();
     };
 
     setRecordingError("");
@@ -252,6 +273,10 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
 
     if (!prompt || pending) {
       return;
+    }
+
+    if (isRecording) {
+      stopRecording();
     }
 
     setError("");
@@ -428,6 +453,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
         </label>
         <textarea
           id="studio-ai-prompt"
+          ref={textareaRef}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           rows={4}
