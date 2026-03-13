@@ -4,6 +4,8 @@ site:
   description: A premium tech and AI publication with sharp, practical analysis for builders.
   lastUpdated: 2026-03-13
   navigation:
+    - label: Home
+      href: /
     - label: Latest
       href: /latest
     - label: Community

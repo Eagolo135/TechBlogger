@@ -14,6 +14,9 @@ export function GlobalHeader() {
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm text-[color:var(--muted)] md:flex">
+          <Link href="/" className="transition hover:text-foreground">
+            Home
+          </Link>
           <Link href="/latest" className="transition hover:text-foreground">
             Latest
           </Link>
