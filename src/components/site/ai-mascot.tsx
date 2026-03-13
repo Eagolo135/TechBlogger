@@ -1,6 +1,7 @@
 /**
  * The TechBlogger (TB) chibi mascot component.
- * Represents the friendly AI companion for the site.
+ * 
+ * This is the official TB mascot that represents the friendly AI companion for the site.
  */
 export function AiMascot() {
   return (
