@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getProfile, saveCommunityPost } from "@/lib/community";
 
 const RESEARCH_API_URL = process.env.NEXT_PUBLIC_RESEARCH_API_URL || "http://localhost:8787/generate";
+const SITE_CHANGE_API_URL = RESEARCH_API_URL.replace(/\/generate\/?$/i, "/site-change");
 
 type StructuredPost = {
   title: string;
@@ -37,6 +38,20 @@ type ResearchResponse = {
   postDraft?: string;
   post?: StructuredPost;
   sources?: Array<{ title: string; url: string }>;
+  error?: string;
+};
+
+type SiteChangeResponse = {
+  request: string;
+  mode: string;
+  summary?: string;
+  count?: number;
+  applied?: Array<{
+    action: string;
+    path: string;
+    newPath?: string;
+    status: string;
+  }>;
   error?: string;
 };
 
@@ -97,6 +112,7 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [latestPost, setLatestPost] = useState<StructuredPost | null>(null);
+  const [siteEditMode, setSiteEditMode] = useState(false);
 
   const canSubmit = useMemo(() => input.trim().length >= 3 && !pending, [input, pending]);
 
@@ -122,54 +138,85 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
     setPending(true);
 
     try {
-      const response = await fetch(RESEARCH_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ topic: prompt }),
-      });
+      if (siteEditMode) {
+        const response = await fetch(SITE_CHANGE_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ request: prompt, mode: "auto" }),
+        });
 
-      const data = (await response.json()) as ResearchResponse;
-      if (!response.ok || data.error) {
-        throw new Error(data.error || "The AI publishing service is unavailable.");
+        const data = (await response.json()) as SiteChangeResponse;
+        if (!response.ok || data.error) {
+          throw new Error(data.error || "Website change request failed.");
+        }
+
+        const appliedSummary = Array.isArray(data.applied)
+          ? data.applied
+              .slice(0, 5)
+              .map((entry) => `${entry.action}:${entry.path}`)
+              .join(", ")
+          : "";
+
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-site-${Date.now()}`,
+            role: "assistant",
+            text: `Site update completed. ${data.summary || ""} Applied ${data.count || 0} changes.${appliedSummary ? ` (${appliedSummary})` : ""}`,
+          },
+        ]);
+      } else {
+        const response = await fetch(RESEARCH_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ topic: prompt }),
+        });
+
+        const data = (await response.json()) as ResearchResponse;
+        if (!response.ok || data.error) {
+          throw new Error(data.error || "The AI publishing service is unavailable.");
+        }
+
+        const profile = getProfile();
+        const authorName = profile?.name || "AI Desk";
+        const draft = normalizeDraft(data);
+        setLatestPost(data.post || null);
+
+        const created = saveCommunityPost({
+          title: draft.title,
+          deck: draft.deck,
+          excerpt: draft.excerpt,
+          body: draft.body,
+          category: draft.category,
+          tags: draft.tags,
+          authorName,
+          readTime: draft.readTime,
+          keyTakeaways: draft.keyTakeaways,
+          sections: draft.sections,
+          visualIdeas: draft.visualIdeas,
+          sources: draft.sources,
+        });
+
+        if (!created) {
+          throw new Error("Could not save the generated post to your local feed.");
+        }
+
+        onPublished();
+
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${created.id}`,
+            role: "assistant",
+            text: `Published \"${draft.title}\". Your post is now live in the community feed.`,
+            publishedPostId: created.id,
+          },
+        ]);
       }
-
-      const profile = getProfile();
-      const authorName = profile?.name || "AI Desk";
-      const draft = normalizeDraft(data);
-      setLatestPost(data.post || null);
-
-      const created = saveCommunityPost({
-        title: draft.title,
-        deck: draft.deck,
-        excerpt: draft.excerpt,
-        body: draft.body,
-        category: draft.category,
-        tags: draft.tags,
-        authorName,
-        readTime: draft.readTime,
-        keyTakeaways: draft.keyTakeaways,
-        sections: draft.sections,
-        visualIdeas: draft.visualIdeas,
-        sources: draft.sources,
-      });
-
-      if (!created) {
-        throw new Error("Could not save the generated post to your local feed.");
-      }
-
-      onPublished();
-
-      setMessages((current) => [
-        ...current,
-        {
-          id: `assistant-${created.id}`,
-          role: "assistant",
-          text: `Published \"${draft.title}\". Your post is now live in the community feed.`,
-          publishedPostId: created.id,
-        },
-      ]);
     } catch (requestError) {
       const nextError =
         requestError instanceof Error
@@ -202,6 +249,16 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
         Give any input: a sentence, rough notes, or a messy idea. The assistant turns it into a
         full, publication-ready article with structure, takeaways, and visual ideas.
       </p>
+
+      <label className="mt-4 inline-flex items-center gap-2 text-xs text-[color:var(--muted)]">
+        <input
+          type="checkbox"
+          checked={siteEditMode}
+          onChange={(event) => setSiteEditMode(event.target.checked)}
+          className="h-4 w-4 rounded border border-[color:var(--line)]"
+        />
+        Enable MCP site-edit mode (assistant can alter website files directly)
+      </label>
 
       <div className="mt-6 max-h-[440px] space-y-3 overflow-y-auto rounded-[1.5rem] border border-[color:var(--line)] bg-white/85 p-4">
         {messages.map((message) => (
@@ -245,7 +302,13 @@ export function StudioAiChat({ onPublished }: StudioAiChatProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button type="submit" disabled={!canSubmit}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {pending ? "Generating and publishing..." : "Generate and publish post"}
+            {pending
+              ? siteEditMode
+                ? "Applying site changes..."
+                : "Generating and publishing..."
+              : siteEditMode
+                ? "Run site changes"
+                : "Generate and publish post"}
           </Button>
           <Button asChild variant="outline">
             <Link href="/community">View community feed</Link>

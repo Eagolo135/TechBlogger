@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ import OpenAI from "openai";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(currentFilePath), "..");
+const websiteRoot = path.resolve(projectRoot, "..", "..");
 dotenv.config({ path: path.join(projectRoot, ".env") });
 
 const apiKey = process.env.OPENAI_API_KEY;
@@ -20,6 +22,18 @@ if (!apiKey) {
 }
 
 const openai = new OpenAI({ apiKey });
+
+async function callModel(systemPrompt, userPrompt) {
+  const response = await openai.responses.create({
+    model,
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+
+  return response.output_text || "";
+}
 
 function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", corsOrigin);
@@ -59,6 +73,120 @@ function decodeSearchHref(rawHref) {
     return maybeUrl.toString();
   } catch {
     return "";
+  }
+}
+
+function resolveWebsitePath(relativePath) {
+  const normalizedRelative = String(relativePath || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+
+  if (!normalizedRelative) {
+    throw new Error("Path is required.");
+  }
+
+  const absolutePath = path.resolve(websiteRoot, normalizedRelative);
+  if (!absolutePath.startsWith(websiteRoot)) {
+    throw new Error(`Blocked path outside website root: ${relativePath}`);
+  }
+
+  return {
+    relativePath: normalizedRelative,
+    absolutePath,
+  };
+}
+
+async function applyWebsiteOperations(operations) {
+  const applied = [];
+
+  for (const operation of operations) {
+    const action = String(operation?.action || "");
+
+    if (action === "write") {
+      if (typeof operation.content !== "string") {
+        throw new Error(`Write operation requires string content for path: ${operation.path}`);
+      }
+
+      const target = resolveWebsitePath(operation.path);
+      await mkdir(path.dirname(target.absolutePath), { recursive: true });
+      await writeFile(target.absolutePath, operation.content, "utf8");
+      applied.push({ action, path: target.relativePath, status: "written" });
+      continue;
+    }
+
+    if (action === "delete") {
+      const target = resolveWebsitePath(operation.path);
+      await rm(target.absolutePath, { recursive: true, force: true });
+      applied.push({ action, path: target.relativePath, status: "deleted" });
+      continue;
+    }
+
+    if (action === "rename") {
+      if (!operation.newPath) {
+        throw new Error(`Rename operation requires newPath for path: ${operation.path}`);
+      }
+
+      const from = resolveWebsitePath(operation.path);
+      const to = resolveWebsitePath(operation.newPath);
+      await mkdir(path.dirname(to.absolutePath), { recursive: true });
+      await rename(from.absolutePath, to.absolutePath);
+      applied.push({
+        action,
+        path: from.relativePath,
+        newPath: to.relativePath,
+        status: "renamed",
+      });
+      continue;
+    }
+
+    throw new Error(`Unsupported action: ${action}`);
+  }
+
+  return applied;
+}
+
+async function planWebsiteOperations(changeRequest) {
+  const output = await callModel(
+    "You are a senior Next.js engineer who plans and writes codebase-level changes.",
+    [
+      `Website root: ${websiteRoot}`,
+      `Change request: ${changeRequest}`,
+      "Return valid JSON only.",
+      "Output schema:",
+      JSON.stringify(
+        {
+          summary: "string",
+          operations: [
+            {
+              action: "write|rename|delete",
+              path: "relative/path/from/repo/root",
+              newPath: "relative/path/for-rename",
+              content: "full file content for write action",
+              reason: "why this change is needed",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "When using action=write, include full file content.",
+      "Do not include markdown code fences.",
+    ].join("\n\n"),
+  );
+
+  try {
+    const parsed = JSON.parse(output);
+    return {
+      summary: String(parsed.summary || "Generated change plan."),
+      operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+    };
+  } catch {
+    return {
+      summary: "Failed to parse model output for website operations.",
+      operations: [],
+      raw: output,
+    };
   }
 }
 
@@ -263,6 +391,47 @@ const server = createServer(async (req, res) => {
       return;
     } catch (error) {
       json(res, 500, { error: `Research generation failed: ${String(error)}` });
+      return;
+    }
+  }
+
+  if (req.method === "POST" && req.url === "/site-change") {
+    try {
+      const rawBody = await readBody(req);
+      const body = rawBody ? JSON.parse(rawBody) : {};
+      const request = String(body.request || "").trim();
+      const mode = String(body.mode || "auto").toLowerCase();
+
+      if (request.length < 4) {
+        json(res, 400, { error: "Request must be at least 4 characters." });
+        return;
+      }
+
+      const plan = await planWebsiteOperations(request);
+      if (mode === "plan") {
+        json(res, 200, {
+          request,
+          mode,
+          websiteRoot,
+          summary: plan.summary,
+          operations: plan.operations,
+          count: plan.operations.length,
+        });
+        return;
+      }
+
+      const applied = await applyWebsiteOperations(plan.operations);
+      json(res, 200, {
+        request,
+        mode,
+        summary: plan.summary,
+        operations: plan.operations,
+        applied,
+        count: applied.length,
+      });
+      return;
+    } catch (error) {
+      json(res, 500, { error: `Website change failed: ${String(error)}` });
       return;
     }
   }
