@@ -1,5 +1,20 @@
 # OpenAI MCP Tools
 
+Quickstart
+
+1. From the repository root, install deps and start the MCP server:
+
+```bash
+cd mcp/openai-tools
+npm install
+npx playwright install chromium
+copy .env.example .env
+# set OPENAI_API_KEY in .env
+npm start
+```
+
+This will launch the MCP server at `mcp/openai-tools/src/server.js` using stdio transport. See the full sections below for additional details.
+
 This folder contains a standalone MCP server that exposes custom tools powered by the OpenAI API.
 
 ## Included Tools

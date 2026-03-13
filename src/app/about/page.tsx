@@ -135,13 +135,46 @@ export default function AboutPage() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-[color:var(--line)] bg-white/80 p-4">
-          <h3 className="text-base font-semibold">How to use</h3>
-          <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-7 text-[color:var(--muted)]">
-            <li>Start MCP services with <code>npm run mcp:openai</code> and <code>npm run mcp:research-api</code>.</li>
-            <li>Provide a topic in the home AI chat and generate a draft.</li>
-            <li>Review the structured draft with sections, takeaways, and visual ideas.</li>
-            <li>Use Publish to save and open the formatted post on its own page.</li>
-          </ol>
+          <h3 className="text-base font-semibold">How to run the MCP tools</h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <h4 className="text-sm font-semibold">Setup</h4>
+              <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-7 text-[color:var(--muted)]">
+                <li>Install dependencies for the MCP server:
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">cd mcp/openai-tools && npm install</code></div>
+                </li>
+                <li>Install Playwright browsers used for screenshots:
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">npx playwright install chromium</code></div>
+                </li>
+                <li>Copy the example env and set your OpenAI key:
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">copy .env.example .env</code></div>
+                  <p className="mt-1 text-[color:var(--muted)]">Then edit <span className="font-mono text-xs">OPENAI_API_KEY</span> in <span className="font-mono text-xs">mcp/openai-tools/.env</span>.</p>
+                </li>
+              </ol>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold">Run</h4>
+              <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-7 text-[color:var(--muted)]">
+                <li>From the repository root (recommended):
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">npm run mcp:openai</code></div>
+                  <p className="mt-1 text-[color:var(--muted)]">This command launches <span className="font-mono text-xs">mcp/openai-tools/src/server.js</span> using the root scripts.</p>
+                </li>
+                <li>Or run directly inside the MCP folder:
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">cd mcp/openai-tools && npm start</code></div>
+                </li>
+                <li>Run the research helper (optional):
+                  <div className="mt-2"><code className="block rounded-xl bg-slate-950 px-3 py-2 text-xs text-white">npm run mcp:research-api</code></div>
+                  <p className="mt-1 text-[color:var(--muted)]">Or from the MCP folder: <span className="font-mono text-xs">npm run research:api</span>.</p>
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm leading-7 text-[color:var(--muted)]">
+            <p>For full details (tools list, example MCP client config, and security notes), see the MCP README:</p>
+            <p className="mt-2"><a className="text-[color:var(--accent-cool)]" href="/mcp/openai-tools/README.md">mcp/openai-tools/README.md</a></p>
+          </div>
         </div>
       </section>
 
