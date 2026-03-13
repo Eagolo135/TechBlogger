@@ -397,6 +397,91 @@ server.registerTool(
 );
 
 server.registerTool(
+  "format_blog_post_for_publish",
+  {
+    title: "Format Blog Post For Publish",
+    description:
+      "Convert a rough draft or notes into a professional, publish-ready structured post with subsections and visual ideas.",
+    inputSchema: {
+      topic: z.string().min(3),
+      draft: z.string().min(20),
+      categoryHint: z.string().default("AI Systems"),
+      includeVisualIdeas: z.boolean().default(true),
+    },
+  },
+  async ({ topic, draft, categoryHint, includeVisualIdeas }) => {
+    const systemPrompt = [
+      "You are a senior technical editor who formats blog content for publication.",
+      "Transform the input into professional editorial structure.",
+      "Output valid JSON only.",
+    ].join(" ");
+
+    const userPrompt = [
+      `Topic: ${topic}`,
+      `Category hint: ${categoryHint}`,
+      `Include visual ideas: ${includeVisualIdeas}`,
+      "Draft content:",
+      draft,
+      "Return JSON schema:",
+      JSON.stringify(
+        {
+          title: "string",
+          deck: "string",
+          excerpt: "string",
+          readTime: "string",
+          category: "string",
+          tags: ["string"],
+          keyTakeaways: ["string"],
+          sections: [
+            {
+              heading: "string",
+              body: "multi-paragraph string",
+              bullets: ["string"],
+            },
+          ],
+          visualIdeas: [
+            {
+              type: "chart|diagram|table|timeline",
+              title: "string",
+              description: "string",
+              dataHint: "string",
+            },
+          ],
+          postMarkdown: "string",
+        },
+        null,
+        2,
+      ),
+      "No markdown fences. Keep JSON parseable.",
+    ].join("\n\n");
+
+    const output = await callModel(systemPrompt, userPrompt);
+    try {
+      const parsed = JSON.parse(output);
+      return {
+        content: [{ type: "text", text: JSON.stringify(parsed, null, 2) }],
+      };
+    } catch {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                error: "Model did not return valid JSON.",
+                raw: output,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+  },
+);
+
+server.registerTool(
   "web_search",
   {
     title: "Web Search",

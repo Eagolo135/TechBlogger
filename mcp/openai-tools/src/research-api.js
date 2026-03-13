@@ -94,14 +94,83 @@ async function performWebSearch(query, maxResults = 6) {
   return results;
 }
 
+function fallbackStructuredPost(topic, sources, draftText) {
+  const clean = String(draftText || "").trim();
+  const firstParagraph = clean.split("\n\n").find((entry) => entry.trim().length > 20) || clean;
+
+  return {
+    title: `AI Brief: ${topic}`,
+    deck: "A practical, research-backed take on the topic.",
+    excerpt: firstParagraph.replace(/\s+/g, " ").trim().slice(0, 220),
+    readTime: "8 min read",
+    category: "AI Systems",
+    tags: ["ai", "research", "engineering"],
+    keyTakeaways: [
+      "Start with the core decision this topic affects.",
+      "Tie implementation choices to measurable outcomes.",
+      "Use a staged rollout and capture signals early.",
+    ],
+    sections: [
+      {
+        heading: "Overview",
+        body: clean || `This draft summarizes the topic: ${topic}.`,
+        bullets: ["Context", "Current patterns", "Practical implications"],
+      },
+    ],
+    visualIdeas: [
+      {
+        type: "chart",
+        title: "Impact over time",
+        description: "Compare adoption, quality, and delivery speed over three release cycles.",
+        dataHint: "Collect internal sprint metrics and incident counts.",
+      },
+    ],
+    sources,
+    postMarkdown: clean,
+  };
+}
+
 async function generateBlogDraft(topic, sources) {
   const prompt = [
     `Topic: ${topic}`,
-    "Use the source list below to write a practical tech blog post draft.",
-    "Structure: Title, Intro, 4 sections with subheadings, Key takeaways, and 'Sources'.",
-    "Keep it factual, concise, and useful for software engineers.",
+    "Write a high-quality, professional tech/AI blog post package.",
+    "Return VALID JSON only (no markdown fences).",
+    "Structure must include title, deck, excerpt, readTime, tags, keyTakeaways, sections, visualIdeas, and postMarkdown.",
+    "Sections should be substantial and engaging.",
+    "No headings with '#' in final structured fields.",
+    "Use sources for factual grounding and avoid made-up facts.",
     "Source list:",
     JSON.stringify(sources, null, 2),
+    "JSON schema:",
+    JSON.stringify(
+      {
+        title: "string",
+        deck: "string",
+        excerpt: "string",
+        readTime: "string",
+        category: "AI Systems",
+        tags: ["string"],
+        keyTakeaways: ["string"],
+        sections: [
+          {
+            heading: "string",
+            body: "multi-paragraph string",
+            bullets: ["string"],
+          },
+        ],
+        visualIdeas: [
+          {
+            type: "chart|diagram|table|timeline",
+            title: "string",
+            description: "string",
+            dataHint: "string",
+          },
+        ],
+        postMarkdown: "string",
+      },
+      null,
+      2,
+    ),
   ].join("\n\n");
 
   const response = await openai.responses.create({
@@ -118,7 +187,18 @@ async function generateBlogDraft(topic, sources) {
     ],
   });
 
-  return response.output_text || "No draft generated.";
+  const output = response.output_text || "";
+
+  try {
+    const parsed = JSON.parse(output);
+    return {
+      ...parsed,
+      sources,
+      postMarkdown: parsed.postMarkdown || output,
+    };
+  } catch {
+    return fallbackStructuredPost(topic, sources, output);
+  }
 }
 
 function readBody(req) {
@@ -165,12 +245,13 @@ const server = createServer(async (req, res) => {
       }
 
       const sources = await performWebSearch(topic, 6);
-      const postDraft = await generateBlogDraft(topic, sources);
+      const structuredPost = await generateBlogDraft(topic, sources);
 
       json(res, 200, {
         topic,
         brief: `Found ${sources.length} web sources and generated a draft post.`,
-        postDraft,
+        post: structuredPost,
+        postDraft: structuredPost.postMarkdown,
         sources,
       });
       return;

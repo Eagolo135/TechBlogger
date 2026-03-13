@@ -9,6 +9,28 @@ type ResearchResponse = {
   topic: string;
   brief?: string;
   postDraft?: string;
+  post?: {
+    title: string;
+    deck?: string;
+    excerpt?: string;
+    readTime?: string;
+    category?: string;
+    tags?: string[];
+    keyTakeaways?: string[];
+    sections?: Array<{
+      heading: string;
+      body: string;
+      bullets?: string[];
+    }>;
+    visualIdeas?: Array<{
+      type: string;
+      title: string;
+      description: string;
+      dataHint?: string;
+    }>;
+    postMarkdown?: string;
+    sources?: Array<{ title: string; url: string }>;
+  };
   sources?: Array<{ title: string; url: string }>;
   error?: string;
 };
@@ -65,6 +87,22 @@ export function ResearchChat() {
   }
 
   function buildPostFromDraft(data: ResearchResponse) {
+    if (data.post) {
+      return {
+        title: data.post.title || `AI Draft: ${data.topic}`,
+        deck: data.post.deck || "",
+        body: data.post.postMarkdown || data.postDraft || "",
+        excerpt: data.post.excerpt || `AI-generated draft about ${data.topic}`,
+        tags: data.post.tags?.length ? data.post.tags : ["ai", "generated", "research"],
+        category: data.post.category || "AI Systems",
+        readTime: data.post.readTime || "8 min read",
+        keyTakeaways: data.post.keyTakeaways || [],
+        sections: data.post.sections || [],
+        visualIdeas: data.post.visualIdeas || [],
+        sources: data.post.sources || data.sources || [],
+      };
+    }
+
     const draft = (data.postDraft || "").trim();
     const lines = draft.split("\n").map((line) => line.trim());
     const heading = lines.find((line) => /^#\s+/.test(line)) || "";
@@ -80,7 +118,19 @@ export function ResearchChat() {
       .slice(0, 220);
 
     const tags = ["ai", "generated", "research"];
-    return { title, body: draft, excerpt, tags };
+    return {
+      title,
+      deck: "",
+      body: draft,
+      excerpt,
+      tags,
+      category: "AI Systems",
+      readTime: "8 min read",
+      keyTakeaways: [],
+      sections: [],
+      visualIdeas: [],
+      sources: data.sources || [],
+    };
   }
 
   function publishDraft() {
@@ -95,11 +145,17 @@ export function ResearchChat() {
 
     const created = saveCommunityPost({
       title: parsed.title,
+      deck: parsed.deck,
       excerpt: parsed.excerpt || `AI-generated draft about ${result.topic}`,
       body: parsed.body,
-      category: "AI Systems",
+      category: parsed.category,
       tags: parsed.tags,
       authorName,
+      readTime: parsed.readTime,
+      keyTakeaways: parsed.keyTakeaways,
+      sections: parsed.sections,
+      visualIdeas: parsed.visualIdeas,
+      sources: parsed.sources,
     });
 
     if (!created) {
@@ -150,9 +206,65 @@ export function ResearchChat() {
           {result.brief ? <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">{result.brief}</p> : null}
 
           <h3 className="mt-5 text-xl font-semibold">Draft post</h3>
-          <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-7 text-slate-900">
-            {result.postDraft || "No draft generated."}
-          </pre>
+          {result.post ? (
+            <div className="mt-3 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--muted)]">Headline</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{result.post.title}</p>
+                {result.post.deck ? <p className="mt-2 text-sm leading-7 text-slate-700">{result.post.deck}</p> : null}
+              </div>
+
+              {result.post.keyTakeaways?.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--muted)]">Key takeaways</p>
+                  <ul className="mt-2 grid gap-2 text-sm text-slate-800">
+                    {result.post.keyTakeaways.map((item) => (
+                      <li key={item} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {result.post.sections?.length ? (
+                <div className="space-y-3">
+                  {result.post.sections.map((section) => (
+                    <article key={section.heading} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <h4 className="text-base font-semibold text-slate-900">{section.heading}</h4>
+                      <p className="mt-2 text-sm leading-7 text-slate-700">{section.body}</p>
+                      {section.bullets?.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                          {section.bullets.map((bullet) => (
+                            <li key={bullet}>{bullet}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {result.post.visualIdeas?.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--muted)]">Graphics ideas</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {result.post.visualIdeas.map((idea) => (
+                      <article key={`${idea.type}-${idea.title}`} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-[color:var(--accent-cool)]">{idea.type}</p>
+                        <h5 className="mt-1 text-sm font-semibold text-slate-900">{idea.title}</h5>
+                        <p className="mt-1 text-xs leading-6 text-slate-700">{idea.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-7 text-slate-900">
+              {result.postDraft || "No draft generated."}
+            </pre>
+          )}
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button type="button" onClick={publishDraft}>

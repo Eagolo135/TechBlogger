@@ -7,6 +7,40 @@ import { getSiteContent } from "@/lib/content";
 
 export default function AboutPage() {
   const content = getSiteContent();
+  const mcpTools = [
+    {
+      name: "summarize_text",
+      use: "Summarize long technical notes into concise bullets.",
+    },
+    {
+      name: "generate_blog_ideas",
+      use: "Generate high-quality topic ideas with angles and outlines.",
+    },
+    {
+      name: "create_blog_post_draft",
+      use: "Generate an in-depth draft from a vague prompt or detailed brief.",
+    },
+    {
+      name: "format_blog_post_for_publish",
+      use: "Convert rough draft text into publish-ready sections, takeaways, and visual ideas.",
+    },
+    {
+      name: "web_search",
+      use: "Search the web and return source links for blog research.",
+    },
+    {
+      name: "screenshot_full_page",
+      use: "Capture full-page screenshots for evidence and visual analysis.",
+    },
+    {
+      name: "read_screenshot_image",
+      use: "Extract facts, headings, and numbers from screenshots.",
+    },
+    {
+      name: "agentic_research_chat",
+      use: "Run end-to-end research orchestration with sourced answers.",
+    },
+  ];
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -76,6 +110,35 @@ export default function AboutPage() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="mt-6 panel rounded-[2rem] p-6">
+        <div className="flex items-center gap-2 text-sm text-[color:var(--accent-ink)]">
+          <ListChecks className="h-4 w-4" />
+          MCP tools and usage
+        </div>
+        <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">
+          These tools power AI research and publishing workflows across the site.
+        </p>
+
+        <div className="mt-4 grid gap-3">
+          {mcpTools.map((tool) => (
+            <article key={tool.name} className="rounded-2xl border border-[color:var(--line)] bg-white/80 p-4">
+              <p className="font-mono text-xs text-[color:var(--accent-cool)]">{tool.name}</p>
+              <p className="mt-1 text-sm leading-7 text-[color:var(--muted)]">{tool.use}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-[color:var(--line)] bg-white/80 p-4">
+          <h3 className="text-base font-semibold">How to use</h3>
+          <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-7 text-[color:var(--muted)]">
+            <li>Start MCP services with <code>npm run mcp:openai</code> and <code>npm run mcp:research-api</code>.</li>
+            <li>Provide a topic in the home AI chat and generate a draft.</li>
+            <li>Review the structured draft with sections, takeaways, and visual ideas.</li>
+            <li>Use Publish to save and open the formatted post on its own page.</li>
+          </ol>
+        </div>
       </section>
 
       <section className="mt-6 panel rounded-[2rem] p-6">

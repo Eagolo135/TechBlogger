@@ -9,12 +9,30 @@ export type CommunityProfile = {
 export type CommunityPost = {
   id: string;
   title: string;
+  deck?: string;
   excerpt: string;
   body: string;
   category: string;
   tags: string[];
   createdAt: string;
   authorName: string;
+  readTime?: string;
+  keyTakeaways?: string[];
+  sections?: Array<{
+    heading: string;
+    body: string;
+    bullets?: string[];
+  }>;
+  visualIdeas?: Array<{
+    type: string;
+    title: string;
+    description: string;
+    dataHint?: string;
+  }>;
+  sources?: Array<{
+    title: string;
+    url: string;
+  }>;
 };
 
 const PROFILE_KEY = "techblogger_profile_v1";

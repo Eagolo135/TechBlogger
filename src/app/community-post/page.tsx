@@ -60,26 +60,73 @@ function CommunityPostPageContent() {
           <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-[-0.04em] [text-wrap:balance] sm:text-5xl lg:text-6xl">
             {post.title}
           </h1>
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-[color:var(--muted)] sm:text-xl">{post.excerpt}</p>
+          <p className="mt-5 max-w-3xl text-lg leading-8 text-[color:var(--muted)] sm:text-xl">{post.deck || post.excerpt}</p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-[color:var(--muted)]">
             <span>{post.authorName}</span>
             <span>{format(new Date(post.createdAt), "MMMM d, yyyy")}</span>
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
-              Community post
+              {post.readTime || "Community post"}
             </span>
           </div>
         </header>
 
         <article className="panel rounded-[2rem] px-6 py-8 sm:px-10">
-          <div className="prose-copy space-y-4">
-            {post.body.split("\n\n").map((paragraph, index) => (
-              <p key={`${index}-${paragraph.slice(0, 24)}`} className="text-base leading-8 text-[color:var(--muted)] sm:text-lg">
-                {paragraph}
-              </p>
-            ))}
-          </div>
+          {post.keyTakeaways?.length ? (
+            <section className="mb-8 rounded-[1.5rem] border border-[color:var(--line)] bg-white/70 p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em]">Key takeaways</h2>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {post.keyTakeaways.map((item) => (
+                  <li key={item} className="rounded-xl border border-[color:var(--line)] bg-white/85 px-3 py-2 text-sm leading-7 text-[color:var(--muted)]">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {post.sections?.length ? (
+            <div className="space-y-6">
+              {post.sections.map((section) => (
+                <section key={section.heading} className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/70 p-5">
+                  <h3 className="text-2xl font-semibold tracking-[-0.03em]">{section.heading}</h3>
+                  <p className="mt-3 text-base leading-8 text-[color:var(--muted)] sm:text-lg">{section.body}</p>
+                  {section.bullets?.length ? (
+                    <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-7 text-[color:var(--muted)]">
+                      {section.bullets.map((bullet) => (
+                        <li key={bullet}>{bullet}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="prose-copy space-y-4">
+              {post.body.split("\n\n").map((paragraph, index) => (
+                <p key={`${index}-${paragraph.slice(0, 24)}`} className="text-base leading-8 text-[color:var(--muted)] sm:text-lg">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {post.visualIdeas?.length ? (
+            <section className="mt-8 rounded-[1.5rem] border border-[color:var(--line)] bg-white/70 p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em]">Suggested graphics</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {post.visualIdeas.map((idea) => (
+                  <article key={`${idea.type}-${idea.title}`} className="rounded-xl border border-[color:var(--line)] bg-white/85 p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-[color:var(--accent-cool)]">{idea.type}</p>
+                    <h3 className="mt-1 text-base font-semibold">{idea.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[color:var(--muted)]">{idea.description}</p>
+                    {idea.dataHint ? <p className="mt-2 text-xs text-[color:var(--muted)]">Data hint: {idea.dataHint}</p> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </article>
       </div>
     </main>
