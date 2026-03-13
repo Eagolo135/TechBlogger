@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5efe4;
-  --foreground: #111827;
-  --muted: #5b6474;
-  --surface: rgba(255, 251, 245, 0.76);
-  --surface-strong: rgba(255, 251, 245, 0.94);
-  --line: rgba(17, 24, 39, 0.1);
-  --accent: #ef7b45;
-  --accent-ink: #7c2d12;
+  --background: #edf3fb;
+  --foreground: #0f172a;
+  --muted: #4b5563;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+  --line: rgba(15, 23, 42, 0.12);
+  --accent: #2563eb;
+  --accent-ink: #1d4ed8;
   --accent-cool: #0f766e;
 }
 
@@ -31,8 +31,9 @@ body {
   min-height: 100vh;
   background: var(--background);
   background-image:
-    radial-gradient(circle at top left, rgba(239, 123, 69, 0.28), transparent 28%),
-    radial-gradient(circle at top right, rgba(15, 118, 110, 0.2), transparent 24%),
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.22), transparent 30%),
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.18), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.16), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
   color: var(--foreground);
   font-family: var(--font-space-grotesk), sans-serif;
@@ -44,13 +45,13 @@ a {
 }
 
 ::selection {
-  background: rgba(239, 123, 69, 0.25);
+  background: rgba(37, 99, 235, 0.24);
 }
 
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.1);
   backdrop-filter: blur(18px);
 }
 
@@ -60,9 +61,16 @@ a {
 
 .grid-lines {
   background-image:
-    linear-gradient(rgba(17, 24, 39, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17, 24, 39, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+.hero-spotlight {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(37, 99, 235, 0.24), transparent 40%),
+    radial-gradient(circle at 85% 5%, rgba(20, 184, 166, 0.2), transparent 38%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(245, 249, 255, 0.85));
 }
 
 .eyebrow {

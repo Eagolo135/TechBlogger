@@ -1,7 +1,7 @@
 site:
   name: TechBlogger
   tagline: Signal-rich writing for builders
-  description: A modern static tech publication generated from one YAML content source.
+  description: A premium tech and AI publication generated from one YAML content source.
   lastUpdated: 2026-03-13
   navigation:
     - label: Signals
@@ -22,7 +22,7 @@ site:
     - Build artifacts stay generated
   hero:
     eyebrow: Engineering briefs for modern product teams
-    title: A bold tech blog that ships cleanly from one source of truth.
+    title: A premium tech + AI blog that ships from one source of truth.
     summary: >-
       TechBlogger is tuned for teams who want a credible editorial layer over shipping notes,
       architecture deep dives, and platform updates. Everything on the site is generated from one
@@ -77,6 +77,7 @@ feedFilters:
   - All
   - Engineering
   - AI Systems
+  - AI News
   - Platform
   - Workflow
 
@@ -327,3 +328,52 @@ posts:
           The best review loops are small and repeatable. Talk through upcoming changes, current incidents, build and deploy health, and any schema or workflow updates that could surprise another team.
 
           That beats broad status meetings that surface everything and resolve little.
+  - slug: model-routing-and-cost-control-2026
+    title: Model Routing and Cost Control in 2026 AI Production Stacks
+    deck: Route requests by intent and latency budget instead of using one model for everything.
+    excerpt: >-
+      AI teams are moving from single-model deployments to routing architectures that choose models based on request complexity,
+      user tier, and latency targets. This shift lowers cost while improving reliability.
+    category: AI News
+    publishedAt: 2026-03-13
+    readTime: 10 min read
+    featured: false
+    tags:
+      - AI
+      - LLM Ops
+      - Cost Engineering
+    metrics:
+      - label: Cost reduction
+        value: 28-45%
+      - label: P95 latency gain
+        value: 18%
+      - label: Routing signals
+        value: 6 common
+    keyTakeaways:
+      - Model routing is now a baseline platform capability.
+      - Tiered inference policies prevent high-cost model overuse.
+      - Evaluation data should feed directly into routing rules.
+    author:
+      name: Riya Shah
+      role: AI infrastructure editor
+      bio: Riya covers AI runtime architecture, cost controls, and model operations for shipping teams.
+    sections:
+      - heading: Why one-model strategies are fading
+        body: >-
+          A single general-purpose model can simplify early launches, but it often creates expensive over-provisioning once product usage diversifies.
+          Teams now classify requests by complexity and criticality, then route simple tasks to smaller models while reserving larger models for difficult queries.
+
+          This architecture preserves quality where it matters while keeping costs predictable.
+      - heading: Build routing policies from product constraints
+        callout: Routing logic should be tied to product SLAs, not just model benchmarks.
+        body: >-
+          Effective routing combines request type, user tier, latency budgets, and confidence checks. The policy itself becomes an operational artifact,
+          versioned and reviewed like application code.
+
+          Teams that treat routing as product infrastructure gain better rollback options and clearer incident response.
+      - heading: Keep evaluation loops attached to production
+        body: >-
+          Routing quality declines when offline benchmarks drift from real traffic. Production-side evaluations should continuously verify that low-cost routes remain acceptable
+          and high-cost escalations still add meaningful value.
+
+          The best stacks make evaluation feedback part of daily routing updates.
