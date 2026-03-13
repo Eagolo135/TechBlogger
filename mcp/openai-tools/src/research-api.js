@@ -351,6 +351,45 @@ async function planWebsiteOperations(changeRequest) {
 
   try {
     const parsed = JSON.parse(output);
+
+    // Enrich operations with local candidate snippets pulled from discovered file contents
+    if (Array.isArray(parsed.operations) && parsed.operations.length > 0) {
+      const keywords = Array.from(new Set((changeRequest || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))).slice(0, 8);
+
+      function extractCandidatesFromDiscovered(relPath, max = 6) {
+        try {
+          const entry = fileContents.find((f) => f.path === relPath);
+          if (!entry) return [];
+          const lines = entry.content.split(/\r?\n/);
+          const windows = [];
+          for (let i = 0; i < lines.length; i++) {
+            const start = Math.max(0, i - 3);
+            const end = Math.min(lines.length, i + 4);
+            const snippet = lines.slice(start, end).join("\n");
+            const score = keywords.reduce((s, k) => (snippet.toLowerCase().includes(k) ? s + 1 : s), 0);
+            windows.push({ start: start + 1, end, snippet, score });
+          }
+          windows.sort((a, b) => b.score - a.score);
+          if (windows.every((w) => w.score === 0)) {
+            return windows.slice(0, Math.min(max, windows.length)).map((w) => ({ lineStart: w.start, lineEnd: w.end, snippet: w.snippet }));
+          }
+          return windows.slice(0, max).map((w) => ({ lineStart: w.start, lineEnd: w.end, snippet: w.snippet }));
+        } catch {
+          return [];
+        }
+      }
+
+      for (const op of parsed.operations) {
+        try {
+          if (op && typeof op.path === "string") {
+            op.candidates = extractCandidatesFromDiscovered(op.path, 6);
+          }
+        } catch (e) {
+          // ignore per-op enrichment errors
+        }
+      }
+    }
+
     return {
       summary: String(parsed.summary || "Generated change plan."),
       operations: Array.isArray(parsed.operations) ? parsed.operations : [],

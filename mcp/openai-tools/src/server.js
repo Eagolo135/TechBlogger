@@ -220,7 +220,63 @@ async function planWebsiteOperations(changeRequest) {
   );
 
   try {
-    return JSON.parse(output);
+    const parsed = JSON.parse(output);
+
+    // Enrich operations with local file candidates and a small preview where possible
+    if (Array.isArray(parsed.operations) && parsed.operations.length > 0) {
+      const keywords = Array.from(new Set((changeRequest || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))).slice(0, 8);
+
+      async function extractCandidatesForPath(relPath, max = 6) {
+        try {
+          const target = resolveWebsitePath(relPath);
+          const content = await readFile(target.absolutePath, "utf8");
+          const lines = content.split(/\r?\n/);
+          const windows = [];
+
+          for (let i = 0; i < lines.length; i++) {
+            const start = Math.max(0, i - 3);
+            const end = Math.min(lines.length, i + 4);
+            const snippet = lines.slice(start, end).join("\n");
+            const score = keywords.reduce((s, k) => (snippet.toLowerCase().includes(k) ? s + 1 : s), 0);
+            windows.push({ start: start + 1, end, snippet, score });
+          }
+
+          windows.sort((a, b) => b.score - a.score);
+          const selected = windows.slice(0, max);
+          // If none scored, return the top windows by position (first few)
+          if (selected.every((w) => w.score === 0)) {
+            return windows.slice(0, Math.min(max, windows.length)).map((w) => ({ lineStart: w.start, lineEnd: w.end, snippet: w.snippet }));
+          }
+
+          return selected.map((w) => ({ lineStart: w.start, lineEnd: w.end, snippet: w.snippet }));
+        } catch {
+          return [];
+        }
+      }
+
+      for (const op of parsed.operations) {
+        try {
+          if (op && typeof op.path === "string") {
+            op.candidates = await extractCandidatesForPath(op.path, 6);
+            // small preview: if write content provided, include it, otherwise include file snippet if exists
+            try {
+              const target = resolveWebsitePath(op.path);
+              const before = await readFile(target.absolutePath, "utf8");
+              op.preview = { exists: true, before: before.split(/\r?\n/).slice(0, 300).join("\n") };
+            } catch {
+              op.preview = { exists: false, before: null };
+            }
+            if (op.content) {
+              op.preview.after = String(op.content).slice(0, 20000);
+            }
+          }
+        } catch (e) {
+          // ignore per-operation enrichment errors
+        }
+      }
+    }
+
+    return parsed;
   } catch {
     return {
       summary: "Could not parse structured plan from model output.",
@@ -351,22 +407,25 @@ server.registerTool(
       "Plan and apply website code changes (visual updates, content edits, tools, pages, additions, removals, and refactors) across the TechBlogger repo.",
     inputSchema: {
       changeRequest: z.string().min(4),
-      mode: z.enum(["plan", "apply"]).default("plan"),
+      mode: z.enum(["plan", "preview", "apply"]).default("plan"),
       operations: z
         .array(
           z.object({
-            action: z.enum(["write", "delete", "rename"]),
+            action: z.enum(["write", "delete", "rename", "replace"]),
             path: z.string().min(1),
             newPath: z.string().optional(),
             content: z.string().optional(),
+            find: z.string().optional(),
+            replace: z.string().optional(),
           }),
         )
         .optional(),
     },
   },
   async ({ changeRequest, mode, operations }) => {
-    if (mode === "plan") {
+    if (mode === "plan" || mode === "preview") {
       const plan = await planWebsiteOperations(changeRequest);
+      // preview mode returns enriched plan but does not apply changes
       return {
         content: [
           {
@@ -377,7 +436,7 @@ server.registerTool(
                 changeRequest,
                 plan,
                 note:
-                  "To apply changes, call this tool with mode='apply' and pass explicit operations.",
+                  "Review the candidate snippets and previews, then call with mode='apply' and explicit operations (include 'find' when using replace).",
               },
               null,
               2,
@@ -406,24 +465,62 @@ server.registerTool(
       };
     }
 
-    const applied = await applyWebsiteOperations(operations);
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              mode,
-              changeRequest,
-              applied,
-              websiteRoot,
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-    };
+    try {
+      const applied = await applyWebsiteOperations(operations);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                mode,
+                changeRequest,
+                applied,
+                websiteRoot,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      // Improve error reporting: include file snippet candidates for the failing path if possible
+      const msg = String(error && error.message ? error.message : error);
+      let diagnostics = { message: msg };
+
+      try {
+        // Try to parse path mention from message
+        const pathMatch = msg.match(/'([^']+\.[a-z0-9]+)'/i);
+        const suspected = pathMatch ? pathMatch[1] : (operations && operations[0] && operations[0].path) || null;
+        if (suspected) {
+          const candidates = [];
+          try {
+            const target = resolveWebsitePath(suspected);
+            const before = await readFile(target.absolutePath, "utf8");
+            const lines = before.split(/\r?\n/);
+            for (let i = 0; i < Math.min(80, lines.length); i += 6) {
+              candidates.push({ lineStart: i + 1, lineEnd: Math.min(lines.length, i + 6), snippet: lines.slice(i, i + 6).join("\n") });
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          diagnostics.candidates = candidates;
+        }
+      } catch (e) {
+        // ignore diagnostics enrichment errors
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ error: diagnostics }, null, 2),
+          },
+        ],
+      };
+    }
   },
 );
 
