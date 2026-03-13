@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Bot, LoaderCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getProfile, saveCommunityPost } from "@/lib/community";
 
 type ResearchResponse = {
   topic: string;
@@ -19,6 +20,7 @@ export function ResearchChat() {
   const [result, setResult] = useState<ResearchResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [publishMessage, setPublishMessage] = useState("");
 
   const sourceCount = useMemo(() => result?.sources?.length ?? 0, [result?.sources]);
 
@@ -34,6 +36,7 @@ export function ResearchChat() {
     }
 
     setPending(true);
+    setPublishMessage("");
     try {
       const response = await fetch(RESEARCH_API_URL, {
         method: "POST",
@@ -59,6 +62,54 @@ export function ResearchChat() {
     } finally {
       setPending(false);
     }
+  }
+
+  function buildPostFromDraft(data: ResearchResponse) {
+    const draft = (data.postDraft || "").trim();
+    const lines = draft.split("\n").map((line) => line.trim());
+    const heading = lines.find((line) => /^#\s+/.test(line)) || "";
+    const title = heading ? heading.replace(/^#\s+/, "") : `AI Draft: ${data.topic}`;
+
+    const cleanedBody = draft.replace(/^#\s+.*$/m, "").trim() || draft;
+    const firstParagraph = cleanedBody.split("\n\n").find((part) => part.trim().length > 40) || cleanedBody;
+
+    const excerpt = firstParagraph
+      .replace(/\s+/g, " ")
+      .replace(/^[\-#*\d.\s]+/, "")
+      .trim()
+      .slice(0, 220);
+
+    const tags = ["ai", "generated", "research"];
+    return { title, body: draft, excerpt, tags };
+  }
+
+  function publishDraft() {
+    if (!result?.postDraft) {
+      setPublishMessage("Generate a draft first.");
+      return;
+    }
+
+    const profile = getProfile();
+    const authorName = profile?.name || "AI Desk";
+    const parsed = buildPostFromDraft(result);
+
+    const created = saveCommunityPost({
+      title: parsed.title,
+      excerpt: parsed.excerpt || `AI-generated draft about ${result.topic}`,
+      body: parsed.body,
+      category: "AI Systems",
+      tags: parsed.tags,
+      authorName,
+    });
+
+    if (!created) {
+      setPublishMessage("Unable to publish post right now.");
+      return;
+    }
+
+    const postUrl = `/community-post?id=${encodeURIComponent(created.id)}`;
+    window.open(postUrl, "_blank", "noopener,noreferrer");
+    setPublishMessage("Published. Opened post in a new tab.");
   }
 
   return (
@@ -102,6 +153,13 @@ export function ResearchChat() {
           <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-7 text-slate-900">
             {result.postDraft || "No draft generated."}
           </pre>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button type="button" onClick={publishDraft}>
+              Publish to site
+            </Button>
+            {publishMessage ? <p className="text-sm text-[color:var(--accent-cool)]">{publishMessage}</p> : null}
+          </div>
 
           {sourceCount > 0 ? (
             <div className="mt-5">

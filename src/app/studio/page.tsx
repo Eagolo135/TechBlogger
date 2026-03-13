@@ -159,7 +159,9 @@ export default function StudioPage() {
                         {format(new Date(post.createdAt), "MMM d, yyyy")}
                       </span>
                     </div>
-                    <h2 className="mt-2 text-lg font-semibold">{post.title}</h2>
+                    <Link href={`/community-post?id=${encodeURIComponent(post.id)}`} className="mt-2 block text-lg font-semibold transition hover:text-[color:var(--accent)]">
+                      {post.title}
+                    </Link>
                     <p className="mt-1 text-sm leading-7 text-[color:var(--muted)]">{post.excerpt}</p>
                   </article>
                 ))

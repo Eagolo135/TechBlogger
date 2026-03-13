@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { ArrowLeft, ArrowRight, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,14 +9,8 @@ import { Button } from "@/components/ui/button";
 import { getCommunityPosts, getProfile, type CommunityPost } from "@/lib/community";
 
 export function CommunityPage() {
-  const [profileName, setProfileName] = useState("");
-  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
-
-  useEffect(() => {
-    const profile = getProfile();
-    setProfileName(profile?.name ?? "");
-    setCommunityPosts(getCommunityPosts());
-  }, []);
+  const profileName = useMemo(() => getProfile()?.name ?? "", []);
+  const communityPosts = useMemo<CommunityPost[]>(() => getCommunityPosts(), []);
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -58,7 +52,9 @@ export function CommunityPage() {
                     {format(new Date(post.createdAt), "MMM d, yyyy")}
                   </span>
                 </div>
-                <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em]">{post.title}</h2>
+                <Link href={`/community-post?id=${encodeURIComponent(post.id)}`} className="mt-3 block text-xl font-semibold tracking-[-0.03em] transition hover:text-[color:var(--accent)]">
+                  {post.title}
+                </Link>
                 <p className="mt-2 text-sm leading-7 text-[color:var(--muted)]">{post.excerpt}</p>
                 <div className="mt-4 flex items-center gap-2 text-xs text-[color:var(--muted)]">
                   <UserRound className="h-3.5 w-3.5" />

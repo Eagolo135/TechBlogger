@@ -67,9 +67,14 @@ export function getCommunityPosts(): CommunityPost[] {
   }
 }
 
-export function saveCommunityPost(post: Omit<CommunityPost, "id" | "createdAt">) {
+export function getCommunityPostById(id: string): CommunityPost | null {
+  const posts = getCommunityPosts();
+  return posts.find((post) => post.id === id) ?? null;
+}
+
+export function saveCommunityPost(post: Omit<CommunityPost, "id" | "createdAt">): CommunityPost | null {
   if (!hasWindow()) {
-    return;
+    return null;
   }
 
   const nextPost: CommunityPost = {
@@ -81,4 +86,5 @@ export function saveCommunityPost(post: Omit<CommunityPost, "id" | "createdAt">)
   const current = getCommunityPosts();
   current.unshift(nextPost);
   window.localStorage.setItem(POSTS_KEY, JSON.stringify(current));
+  return nextPost;
 }
