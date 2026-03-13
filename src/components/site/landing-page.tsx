@@ -64,15 +64,15 @@ export function LandingPage({ content }: LandingPageProps) {
           </div>
 
           <nav className="hidden items-center gap-6 text-sm text-[color:var(--muted)] md:flex">
-            <a href="#latest" className="transition hover:text-foreground">
+            <Link href="/latest" className="transition hover:text-foreground">
               Latest
-            </a>
-            <a href="#community" className="transition hover:text-foreground">
+            </Link>
+            <Link href="/community" className="transition hover:text-foreground">
               Community
-            </a>
-            <a href="#topics" className="transition hover:text-foreground">
+            </Link>
+            <Link href="/topics" className="transition hover:text-foreground">
               Topics
-            </a>
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export function LandingPage({ content }: LandingPageProps) {
               </Button>
             )}
             <Button asChild size="sm">
-              <a href="#latest">Read now</a>
+              <Link href="/latest">Read now</Link>
             </Button>
           </div>
         </div>
@@ -111,10 +111,10 @@ export function LandingPage({ content }: LandingPageProps) {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg">
-              <a href="#latest">
+              <Link href="/latest">
                 Explore latest posts
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <Link href={profileName ? "/studio" : "/signup"}>
@@ -255,10 +255,10 @@ export function LandingPage({ content }: LandingPageProps) {
               <p className="mt-3 max-w-2xl text-sm leading-7 text-[color:var(--muted)]">{content.site.footer.summary}</p>
             </div>
             <Button asChild size="lg">
-              <a href="#latest">
+              <Link href="/latest">
                 Continue reading
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </div>
         </section>
