@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile as readFileAsync, rename, rm, writeFile } from "node:fs/promises";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,14 @@ const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const port = Number(process.env.MCP_RESEARCH_API_PORT || 8787);
 const corsOrigin = process.env.RESEARCH_CORS_ORIGIN || "*";
+const projectFacts = [
+  "Framework: Next.js App Router",
+  "Route files live under src/app/**/page.tsx (NOT pages/)",
+  "UI components live under src/components/**",
+  "Core content source is content/site-content.yaml",
+  "Styles are in src/app/globals.css and component-level classes",
+  "Do not write to out/, node_modules/, .git/, or mcp/openai-tools/node_modules/",
+].join("\n");
 
 if (!apiKey) {
   console.error("Missing OPENAI_API_KEY in mcp/openai-tools/.env");
@@ -109,9 +117,40 @@ async function applyWebsiteOperations(operations) {
       }
 
       const target = resolveWebsitePath(operation.path);
+      try {
+        await readFileAsync(target.absolutePath, "utf8");
+        throw new Error(
+          `Refusing to overwrite existing file '${target.relativePath}' with write action. Use replace action instead.`,
+        );
+      } catch (error) {
+        if (!(error instanceof Error) || !/ENOENT/.test(String(error))) {
+          throw error;
+        }
+      }
+
       await mkdir(path.dirname(target.absolutePath), { recursive: true });
       await writeFile(target.absolutePath, operation.content, "utf8");
       applied.push({ action, path: target.relativePath, status: "written" });
+      continue;
+    }
+
+    if (action === "replace") {
+      if (typeof operation.find !== "string" || operation.find.length === 0) {
+        throw new Error(`Replace operation requires a non-empty find string for path: ${operation.path}`);
+      }
+      if (typeof operation.replace !== "string") {
+        throw new Error(`Replace operation requires a replace string for path: ${operation.path}`);
+      }
+
+      const target = resolveWebsitePath(operation.path);
+      const before = await readFileAsync(target.absolutePath, "utf8");
+      if (!before.includes(operation.find)) {
+        throw new Error(`Find string was not found in '${target.relativePath}'.`);
+      }
+
+      const after = before.replace(operation.find, operation.replace);
+      await writeFile(target.absolutePath, after, "utf8");
+      applied.push({ action, path: target.relativePath, status: "replaced" });
       continue;
     }
 
@@ -151,6 +190,8 @@ async function planWebsiteOperations(changeRequest) {
     "You are a senior Next.js engineer who plans and writes codebase-level changes.",
     [
       `Website root: ${websiteRoot}`,
+      "Project facts:",
+      projectFacts,
       `Change request: ${changeRequest}`,
       "Return valid JSON only.",
       "Output schema:",
@@ -159,9 +200,11 @@ async function planWebsiteOperations(changeRequest) {
           summary: "string",
           operations: [
             {
-              action: "write|rename|delete",
+              action: "replace|write|rename|delete",
               path: "relative/path/from/repo/root",
               newPath: "relative/path/for-rename",
+              find: "exact text to find for replace action",
+              replace: "new text for replace action",
               content: "full file content for write action",
               reason: "why this change is needed",
             },
@@ -170,7 +213,12 @@ async function planWebsiteOperations(changeRequest) {
         null,
         2,
       ),
+      "Use action=replace for edits to existing files.",
+      "Use action=write only for brand new files that do not exist yet.",
+      "When using action=replace, include exact find and replace strings.",
       "When using action=write, include full file content.",
+      "Use existing project architecture and paths only.",
+      "Never use pages/* paths because this project uses src/app/* routes.",
       "Do not include markdown code fences.",
     ].join("\n\n"),
   );
@@ -188,6 +236,155 @@ async function planWebsiteOperations(changeRequest) {
       raw: output,
     };
   }
+}
+
+async function planWebsiteOperationsWithContext(changeRequest, previousOperations, failureMessage) {
+  const referencedPaths = Array.from(
+    new Set(
+      (Array.isArray(previousOperations) ? previousOperations : [])
+        .map((operation) => String(operation?.path || "").trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 6);
+
+  const fileContext = [];
+  for (const relativePath of referencedPaths) {
+    try {
+      const target = resolveWebsitePath(relativePath);
+      const content = await readFileAsync(target.absolutePath, "utf8");
+      fileContext.push({
+        path: target.relativePath,
+        content: content.slice(0, 12000),
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  const output = await callModel(
+    "You are a senior Next.js engineer fixing failed code edit operations.",
+    [
+      `Website root: ${websiteRoot}`,
+      "Project facts:",
+      projectFacts,
+      `Original change request: ${changeRequest}`,
+      `Previous failure: ${failureMessage}`,
+      "Previous operations:",
+      JSON.stringify(previousOperations, null, 2),
+      "Current file context:",
+      JSON.stringify(fileContext, null, 2),
+      "Return valid JSON only with schema:",
+      JSON.stringify(
+        {
+          summary: "string",
+          operations: [
+            {
+              action: "replace|write|rename|delete",
+              path: "relative/path/from/repo/root",
+              newPath: "relative/path/for-rename",
+              find: "exact text to find for replace action",
+              replace: "new text for replace action",
+              content: "full file content for write action",
+              reason: "why this change is needed",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "Prefer replace operations and ensure find text exists exactly in provided file context.",
+      "Use write only for brand new files.",
+      "Never use pages/* paths.",
+    ].join("\n\n"),
+  );
+
+  try {
+    const parsed = JSON.parse(output);
+    return {
+      summary: String(parsed.summary || "Generated retry plan."),
+      operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+    };
+  } catch {
+    return {
+      summary: "Failed to parse retry plan.",
+      operations: [],
+      raw: output,
+    };
+  }
+}
+
+function validateWebsiteOperations(operations) {
+  const blockedPrefixes = [".git/", "out/", "node_modules/", "mcp/openai-tools/node_modules/"];
+
+  for (const operation of operations) {
+    const opPath = String(operation?.path || "").replace(/\\/g, "/");
+    const action = String(operation?.action || "");
+
+    if (!opPath) {
+      throw new Error("Planned operation is missing a path.");
+    }
+
+    if (opPath.startsWith("pages/")) {
+      throw new Error(
+        `Invalid path '${opPath}'. This project uses Next.js App Router under src/app, not pages/.`,
+      );
+    }
+
+    if (blockedPrefixes.some((prefix) => opPath.startsWith(prefix))) {
+      throw new Error(`Blocked path '${opPath}'.`);
+    }
+
+    if (action === "rename") {
+      const newPath = String(operation?.newPath || "").replace(/\\/g, "/");
+      if (!newPath) {
+        throw new Error(`Rename operation for '${opPath}' is missing newPath.`);
+      }
+
+      if (newPath.startsWith("pages/")) {
+        throw new Error(
+          `Invalid rename target '${newPath}'. This project uses Next.js App Router under src/app, not pages/.`,
+        );
+      }
+
+      if (blockedPrefixes.some((prefix) => newPath.startsWith(prefix))) {
+        throw new Error(`Blocked rename target '${newPath}'.`);
+      }
+    }
+
+    if (action === "replace") {
+      if (typeof operation?.find !== "string" || operation.find.length === 0) {
+        throw new Error(`Replace operation for '${opPath}' is missing a non-empty find value.`);
+      }
+
+      if (typeof operation?.replace !== "string") {
+        throw new Error(`Replace operation for '${opPath}' is missing replace value.`);
+      }
+    }
+
+    if (!["replace", "write", "rename", "delete"].includes(action)) {
+      throw new Error(`Unsupported action '${action}' for path '${opPath}'.`);
+    }
+  }
+}
+
+async function checkReplaceOperationsApplicable(operations) {
+  for (const operation of operations) {
+    const action = String(operation?.action || "");
+    if (action !== "replace") {
+      continue;
+    }
+
+    const target = resolveWebsitePath(operation.path);
+    const content = await readFileAsync(target.absolutePath, "utf8");
+    if (!content.includes(operation.find)) {
+      return {
+        ok: false,
+        reason: `Replace find string not found in '${target.relativePath}'.`,
+      };
+    }
+  }
+
+  return { ok: true, reason: "" };
 }
 
 async function performWebSearch(query, maxResults = 6) {
@@ -409,6 +606,7 @@ const server = createServer(async (req, res) => {
 
       const plan = await planWebsiteOperations(request);
       if (mode === "plan") {
+        validateWebsiteOperations(plan.operations);
         json(res, 200, {
           request,
           mode,
@@ -420,14 +618,58 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      const applied = await applyWebsiteOperations(plan.operations);
+      let currentPlan = plan;
+      let applied;
+      let retried = false;
+      let retrySummary = "";
+      let lastFailure = "";
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        validateWebsiteOperations(currentPlan.operations);
+        const applicability = await checkReplaceOperationsApplicable(currentPlan.operations);
+
+        if (!applicability.ok) {
+          lastFailure = applicability.reason;
+          const nextPlan = await planWebsiteOperationsWithContext(
+            request,
+            currentPlan.operations,
+            applicability.reason,
+          );
+          currentPlan = nextPlan;
+          retried = true;
+          retrySummary = nextPlan.summary || "Generated retry plan.";
+          continue;
+        }
+
+        try {
+          applied = await applyWebsiteOperations(currentPlan.operations);
+          break;
+        } catch (applyError) {
+          lastFailure = String(applyError);
+          const nextPlan = await planWebsiteOperationsWithContext(
+            request,
+            currentPlan.operations,
+            String(applyError),
+          );
+          currentPlan = nextPlan;
+          retried = true;
+          retrySummary = nextPlan.summary || "Generated retry plan after apply failure.";
+        }
+      }
+
+      if (!applied) {
+        throw new Error(lastFailure || "Failed to apply site change after retries.");
+      }
+
       json(res, 200, {
         request,
         mode,
-        summary: plan.summary,
-        operations: plan.operations,
+        summary: currentPlan.summary,
+        operations: currentPlan.operations,
         applied,
         count: applied.length,
+        retried,
+        retrySummary,
       });
       return;
     } catch (error) {
