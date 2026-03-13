@@ -9,6 +9,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "check": "node --check src/server.js",
+    "preview:cli": "node bin/preview-change.js",
     "research:api": "node src/research-api.js"
   },
   "dependencies": {
