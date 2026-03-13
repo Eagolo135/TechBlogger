@@ -134,9 +134,14 @@ async function generateBlogDraft(topic, sources) {
   const prompt = [
     `Topic: ${topic}`,
     "Write a high-quality, professional tech/AI blog post package.",
+    "No matter how rough, short, or non-technical the user topic is, transform it into a credible and engaging technology-focused article angle.",
+    "Use an editorial voice suitable for a modern tech publication: clear, specific, and practical.",
+    "Make the output visually rich by including concrete visual ideas suitable for charts, diagrams, timelines, or comparison tables.",
+    "Each section must be substantial (not filler), and include actionable guidance where relevant.",
+    "Keep claims grounded in the provided sources.",
     "Return VALID JSON only (no markdown fences).",
     "Structure must include title, deck, excerpt, readTime, tags, keyTakeaways, sections, visualIdeas, and postMarkdown.",
-    "Sections should be substantial and engaging.",
+    "Provide at least 4 sections, at least 4 keyTakeaways, and at least 3 visualIdeas.",
     "No headings with '#' in final structured fields.",
     "Use sources for factual grounding and avoid made-up facts.",
     "Source list:",
@@ -178,7 +183,8 @@ async function generateBlogDraft(topic, sources) {
     input: [
       {
         role: "system",
-        content: "You are an expert technology writer. Use only source-backed claims and keep wording clear.",
+        content:
+          "You are a senior technology editor writing for a premium engineering publication. Produce polished, engaging, scannable, and professional articles with strong structure and practical value. Use only source-backed claims and avoid fluff.",
       },
       {
         role: "user",

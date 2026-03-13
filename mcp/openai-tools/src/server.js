@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(currentFilePath), "..");
+const websiteRoot = path.resolve(projectRoot, "..", "..");
 dotenv.config({ path: path.join(projectRoot, ".env") });
 
 const apiKey = process.env.OPENAI_API_KEY;
@@ -116,6 +117,118 @@ async function performWebSearch(query, maxResults = 5) {
 
 function sanitizeFileName(input) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+function resolveWebsitePath(relativePath) {
+  const normalizedRelative = String(relativePath || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+
+  if (!normalizedRelative) {
+    throw new Error("Path is required.");
+  }
+
+  const absolutePath = path.resolve(websiteRoot, normalizedRelative);
+  if (!absolutePath.startsWith(websiteRoot)) {
+    throw new Error(`Blocked path outside website root: ${relativePath}`);
+  }
+
+  return {
+    relativePath: normalizedRelative,
+    absolutePath,
+  };
+}
+
+async function applyWebsiteOperations(operations) {
+  const results = [];
+
+  for (const operation of operations) {
+    const action = operation.action;
+
+    if (action === "write") {
+      if (typeof operation.content !== "string") {
+        throw new Error(`Write operation requires string content for path: ${operation.path}`);
+      }
+
+      const target = resolveWebsitePath(operation.path);
+      await mkdir(path.dirname(target.absolutePath), { recursive: true });
+      await writeFile(target.absolutePath, operation.content, "utf8");
+      results.push({ action, path: target.relativePath, status: "written" });
+      continue;
+    }
+
+    if (action === "delete") {
+      const target = resolveWebsitePath(operation.path);
+      await rm(target.absolutePath, { recursive: true, force: true });
+      results.push({ action, path: target.relativePath, status: "deleted" });
+      continue;
+    }
+
+    if (action === "rename") {
+      if (!operation.newPath) {
+        throw new Error(`Rename operation requires newPath for path: ${operation.path}`);
+      }
+
+      const from = resolveWebsitePath(operation.path);
+      const to = resolveWebsitePath(operation.newPath);
+      await mkdir(path.dirname(to.absolutePath), { recursive: true });
+      await rename(from.absolutePath, to.absolutePath);
+      results.push({
+        action,
+        path: from.relativePath,
+        newPath: to.relativePath,
+        status: "renamed",
+      });
+      continue;
+    }
+
+    throw new Error(`Unsupported action: ${String(action)}`);
+  }
+
+  return results;
+}
+
+async function planWebsiteOperations(changeRequest) {
+  const output = await callModel(
+    "You are a senior Next.js engineer planning codebase modifications.",
+    [
+      `Website root: ${websiteRoot}`,
+      `Change request: ${changeRequest}`,
+      "Return valid JSON only.",
+      "Output schema:",
+      JSON.stringify(
+        {
+          summary: "string",
+          operations: [
+            {
+              action: "write|rename|delete",
+              path: "relative/path/from/repo/root",
+              newPath: "relative/path/for-rename",
+              content: "full file content for write action",
+              reason: "why this change is needed",
+            },
+          ],
+          tests: ["commands to validate"],
+        },
+        null,
+        2,
+      ),
+      "Use write actions with full file content when proposing changes.",
+      "Do not include markdown fences.",
+    ].join("\n\n"),
+  );
+
+  try {
+    return JSON.parse(output);
+  } catch {
+    return {
+      summary: "Could not parse structured plan from model output.",
+      raw: output,
+      operations: [],
+      tests: [],
+    };
+  }
 }
 
 async function captureFullPageScreenshot({
@@ -229,6 +342,90 @@ async function generateSearchQueries(userRequest, maxQueries = 3) {
 
   return [userRequest];
 }
+
+server.registerTool(
+  "website_change_operator",
+  {
+    title: "Website Change Operator",
+    description:
+      "Plan and apply website code changes (visual updates, content edits, tools, pages, additions, removals, and refactors) across the TechBlogger repo.",
+    inputSchema: {
+      changeRequest: z.string().min(4),
+      mode: z.enum(["plan", "apply"]).default("plan"),
+      operations: z
+        .array(
+          z.object({
+            action: z.enum(["write", "delete", "rename"]),
+            path: z.string().min(1),
+            newPath: z.string().optional(),
+            content: z.string().optional(),
+          }),
+        )
+        .optional(),
+    },
+  },
+  async ({ changeRequest, mode, operations }) => {
+    if (mode === "plan") {
+      const plan = await planWebsiteOperations(changeRequest);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                mode,
+                changeRequest,
+                plan,
+                note:
+                  "To apply changes, call this tool with mode='apply' and pass explicit operations.",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    if (!operations || operations.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                error: "No operations were provided.",
+                hint:
+                  "First call mode='plan' to generate a proposed operation list, then call mode='apply' with reviewed operations.",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    const applied = await applyWebsiteOperations(operations);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              mode,
+              changeRequest,
+              applied,
+              websiteRoot,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  },
+);
 
 server.registerTool(
   "summarize_text",

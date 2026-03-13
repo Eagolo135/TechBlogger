@@ -8,6 +8,7 @@ This folder contains a standalone MCP server that exposes custom tools powered b
 - `generate_blog_ideas`: generate blog ideas with angle and outline
 - `create_blog_post_draft`: generate an in-depth, engaging blog post draft from vague or detailed input
 - `format_blog_post_for_publish`: transform rough drafts into publication-ready structured posts
+- `website_change_operator`: plan and apply broad website code/content/tool/page changes with file operations
 - `web_search`: internet search with top links and snippets
 - `screenshot_full_page`: capture full-page website screenshots
 - `read_screenshot_image`: analyze screenshots or other images with OpenAI vision

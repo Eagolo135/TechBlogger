@@ -25,6 +25,10 @@ export default function AboutPage() {
       use: "Convert rough draft text into publish-ready sections, takeaways, and visual ideas.",
     },
     {
+      name: "website_change_operator",
+      use: "Plan and apply code/content/tool/page changes across the website with controlled file operations.",
+    },
+    {
       name: "web_search",
       use: "Search the web and return source links for blog research.",
     },

@@ -163,8 +163,9 @@ export function ResearchChat() {
       return;
     }
 
-    const postUrl = `/community-post?id=${encodeURIComponent(created.id)}`;
-    window.open(postUrl, "_blank", "noopener,noreferrer");
+    const postUrl = `community-post?id=${encodeURIComponent(created.id)}`;
+    const absolutePostUrl = new URL(postUrl, window.location.href).toString();
+    window.open(absolutePostUrl, "_blank", "noopener,noreferrer");
     setPublishMessage("Published. Opened post in a new tab.");
   }
 
