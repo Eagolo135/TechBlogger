@@ -56,6 +56,9 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_oauth_client_id
 
 `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is safe to expose client-side and is required for the Google button to render.
 
+For GitHub Pages deployment, also add a repository variable named `NEXT_PUBLIC_GOOGLE_CLIENT_ID` under
+`Settings > Secrets and variables > Actions > Variables`.
+
 ## Update Content
 
 You have two supported options.
